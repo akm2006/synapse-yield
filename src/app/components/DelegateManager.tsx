@@ -1,7 +1,7 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
-import { useAccount } from 'wagmi';
+import { useState } from "react";
+import { useAccount } from "wagmi";
 import {
   createWalletClient,
   custom,
@@ -14,21 +14,32 @@ import {
   slice,
   Hex,
   toHex,
-} from 'viem';
+} from "viem";
 import {
   getDeleGatorEnvironment,
   toMetaMaskSmartAccount,
   Implementation,
-} from '@metamask/delegation-toolkit';
-import { publicClient, monad } from '@/lib/viemClients';
+} from "@metamask/delegation-toolkit";
+
+import { NextResponse } from 'next/server';
+import { 
+
+  http, 
+  encodeFunctionData 
+} from 'viem';
+import { privateKeyToAccount } from 'viem/accounts';
+import { monad, bundlerClient, publicClient } from '@/lib/viemClients';
+import { synapseYieldAdapterAbi } from '@/lib/abi';
+import { redeemDelegations } from '@metamask/delegation-toolkit';
 
 // --- Enforcer Contract Addresses (Monad Testnet, checksummed) ---
 const ALLOWED_TARGETS_ENFORCER: Address = getAddress(
-  '0x7f20f61b1f09b08d970938f6fa563634d65c4eeb'
+  "0x7f20f61b1f09b08d970938f6fa563634d65c4eeb"
 );
 const ALLOWED_METHODS_ENFORCER: Address = getAddress(
-  '0x2c21fD0Cb9DC8445CB3fb0DC5E7Bb0Aca0184285'
+  "0x2c21fD0Cb9DC8445CB3fb0DC5E7Bb0Aca0184285"
 );
+
 
 export default function DelegateManager({
   smartAccountAddress,
@@ -46,7 +57,7 @@ export default function DelegateManager({
 
   const authorizeAgent = async () => {
     if (!eoa || !window.ethereum) {
-      setError('Wallet not connected.');
+      setError("Wallet not connected.");
       return;
     }
     setIsLoading(true);
@@ -61,7 +72,7 @@ export default function DelegateManager({
 
       const customAccount = {
         address: eoa,
-        type: 'json-rpc',
+        type: "json-rpc",
         async signMessage({ message }: { message: any }) {
           return await baseClient.signMessage({ message, account: eoa });
         },
@@ -69,7 +80,10 @@ export default function DelegateManager({
           return await baseClient.signTypedData({ ...typedData, account: eoa });
         },
         async signTransaction(transaction: any) {
-          return await baseClient.signTransaction({ ...transaction, account: eoa });
+          return await baseClient.signTransaction({
+            ...transaction,
+            account: eoa,
+          });
         },
       } as unknown as Account;
 
@@ -88,16 +102,20 @@ export default function DelegateManager({
         signer: signerClient,
         environment,
         deployParams: [eoa, [], [], []],
-        deploySalt: '0x',
+        deploySalt: "0x",
       });
 
       // rebalance(string,string,uint256) selector
-      const rebalanceSignature = 'rebalance(string,string,uint256)';
-      const rebalanceSelector = slice(keccak256(toHex(rebalanceSignature)), 0, 4);
+      const rebalanceSignature = "rebalance(string,string,uint256)";
+      const rebalanceSelector = slice(
+        keccak256(toHex(rebalanceSignature)),
+        0,
+        4
+      );
 
       // AllowedTargetsEnforcer terms = address[]
       const targetTerms = encodeAbiParameters(
-        [{ type: 'address[]' }],
+        [{ type: "address[]" }],
         [[adapterAddress]]
       );
 
@@ -105,10 +123,10 @@ export default function DelegateManager({
       const methodsTerms = encodeAbiParameters(
         [
           {
-            type: 'tuple[]',
+            type: "tuple[]",
             components: [
-              { name: 'target', type: 'address' },
-              { name: 'selectors', type: 'bytes4[]' },
+              { name: "target", type: "address" },
+              { name: "selectors", type: "bytes4[]" },
             ],
           },
         ],
@@ -123,11 +141,11 @@ export default function DelegateManager({
       const encodedCaveats = encodeAbiParameters(
         [
           {
-            type: 'tuple[]',
-            name: 'caveats',
+            type: "tuple[]",
+            name: "caveats",
             components: [
-              { name: 'enforcer', type: 'address' },
-              { name: 'terms', type: 'bytes' },
+              { name: "enforcer", type: "address" },
+              { name: "terms", type: "bytes" },
             ],
           },
         ],
@@ -136,7 +154,7 @@ export default function DelegateManager({
       const authority = keccak256(encodedCaveats);
 
       const ZERO_SALT: Hex =
-        '0x0000000000000000000000000000000000000000000000000000000000000000';
+        "0x0000000000000000000000000000000000000000000000000000000000000000";
 
       const delegation = {
         delegate: agentAddress,
@@ -147,34 +165,34 @@ export default function DelegateManager({
 
       const signature = await smartAccount.signTypedData({
         domain: {
-          name: 'DelegationManager',
-          version: '1',
+          name: "DelegationManager",
+          version: "1",
           chainId: monad.id,
           verifyingContract: environment.DelegationManager,
         },
         types: {
           Delegation: [
-            { name: 'delegate', type: 'address' },
-            { name: 'authority', type: 'bytes32' },
-            { name: 'caveats', type: 'Caveat[]' },
-            { name: 'salt', type: 'bytes32' },
+            { name: "delegate", type: "address" },
+            { name: "authority", type: "bytes32" },
+            { name: "caveats", type: "Caveat[]" },
+            { name: "salt", type: "bytes32" },
           ],
           Caveat: [
-            { name: 'enforcer', type: 'address' },
-            { name: 'terms', type: 'bytes' },
+            { name: "enforcer", type: "address" },
+            { name: "terms", type: "bytes" },
           ],
         },
-        primaryType: 'Delegation',
+        primaryType: "Delegation",
         message: delegation,
       });
 
       const signedDelegation = { ...delegation, signature };
       setDelegationId(delegation.authority);
 
-      console.log('✅ Signed Delegation:', signedDelegation);
+      console.log("✅ Signed Delegation:", signedDelegation);
     } catch (err: any) {
       setError(`Delegation failed: ${err.message}`);
-      console.error('Delegation error:', err);
+      console.error("Delegation error:", err);
     } finally {
       setIsLoading(false);
     }
@@ -195,7 +213,7 @@ export default function DelegateManager({
           disabled={isLoading}
           className="px-6 py-3 bg-green-600 text-white font-semibold rounded-lg shadow-md hover:bg-green-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed w-full"
         >
-          {isLoading ? 'Authorizing...' : 'Step 3: Authorize Agent'}
+          {isLoading ? "Authorizing..." : "Step 3: Authorize Agent"}
         </button>
       )}
       {error && (

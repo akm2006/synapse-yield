@@ -1,4 +1,4 @@
-export const synapseYieldAdapterAbi = [
+export const synapseYieldAdapterAbi = 
  [
 	{
 		"inputs": [],
@@ -281,7 +281,6 @@ export const synapseYieldAdapterAbi = [
 		"stateMutability": "payable",
 		"type": "receive"
 	}
-]
 ] as const;
 
 

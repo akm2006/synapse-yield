@@ -28,7 +28,7 @@ export const publicClient = createPublicClient({
 
 // 2. Set up the Bundler Client
 // IMPORTANT: You need a bundler RPC URL. Using a public one for now.
-const BUNDLER_RPC_URL = `https://api.pimlico.io/v2/137/rpc?apikey=pim_WxsBS3r8tV19tcBHJmaJ3o`; // Replace with your key
+export const BUNDLER_RPC_URL = `https://api.pimlico.io/v2/10143/rpc?apikey=pim_WxsBS3r8tV19tcBHJmaJ3o`; // Replace with your key
 
 export const bundlerClient = createBundlerClient({
   chain: monad,
