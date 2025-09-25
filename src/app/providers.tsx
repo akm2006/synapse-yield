@@ -7,12 +7,12 @@ import {
 } from '@rainbow-me/rainbowkit';
 import { WagmiProvider} from 'wagmi';
 import { QueryClientProvider, QueryClient } from '@tanstack/react-query';
-import { monad } from '../lib/viemClients'; // Import our monad chain config
+import { monad } from '@/lib/viemClients'; // Import our monad chain config
 
 // Use RainbowKit's getDefaultConfig for easy setup
 const config = getDefaultConfig({
   appName: 'Synapse Yield',
-  projectId: 'YOUR_WALLETCONNECT_PROJECT_ID', // Get a free projectId at https://cloud.walletconnect.com
+  projectId: '76715cbaa64922d6033dee3f8e941f3a', // Get a free projectId at https://cloud.walletconnect.com
   chains: [monad],
   ssr: true, // Enable SSR for Next.js
 });

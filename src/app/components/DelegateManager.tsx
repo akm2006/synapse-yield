@@ -22,19 +22,22 @@ import {
 } from '@metamask/delegation-toolkit';
 import { publicClient, monad } from '@/lib/viemClients';
 
-// --- YOUR AGENT'S PUBLIC ADDRESS ---
-const AGENT_ADDRESS: Address = getAddress('0x8f6b970b9f25b19f13115bdc7a34514d0f6971d1');
-// --- YOUR DEPLOYED CONTRACT ADDRESS ---
-const ADAPTER_CONTRACT_ADDRESS: Address = getAddress('0x3ed79496b6b5f2aed1e2b8203df783bbe39e9002');
-
-// --- Enforcer Contract Addresses for Monad Testnet (checksummed) ---
-const ALLOWED_TARGETS_ENFORCER: Address = getAddress('0x7f20f61b1f09b08d970938f6fa563634d65c4eeb');
-const ALLOWED_METHODS_ENFORCER: Address = getAddress('0x2c21fD0Cb9DC8445CB3fb0DC5E7Bb0Aca0184285');
+// --- Enforcer Contract Addresses (Monad Testnet, checksummed) ---
+const ALLOWED_TARGETS_ENFORCER: Address = getAddress(
+  '0x7f20f61b1f09b08d970938f6fa563634d65c4eeb'
+);
+const ALLOWED_METHODS_ENFORCER: Address = getAddress(
+  '0x2c21fD0Cb9DC8445CB3fb0DC5E7Bb0Aca0184285'
+);
 
 export default function DelegateManager({
   smartAccountAddress,
+  agentAddress,
+  adapterAddress,
 }: {
   smartAccountAddress: Address;
+  agentAddress: Address;
+  adapterAddress: Address;
 }) {
   const { address: eoa } = useAccount();
   const [delegationId, setDelegationId] = useState<string | null>(null);
@@ -76,33 +79,26 @@ export default function DelegateManager({
         transport: custom(window.ethereum),
       });
 
-      // Toolkit environment
       const environment = getDeleGatorEnvironment(monad.id);
 
-      // Smart account instance
-     const smartAccount = await toMetaMaskSmartAccount({
+      // Create smart account instance
+      const smartAccount = await toMetaMaskSmartAccount({
         client: publicClient,
         implementation: Implementation.Hybrid,
         signer: signerClient,
         environment,
-        deployParams: [eoa, [], [], []], // ✅ This is required
+        deployParams: [eoa, [], [], []],
         deploySalt: '0x',
       });
 
-      // --- MANUAL PAYLOAD CONSTRUCTION ---
-
       // rebalance(string,string,uint256) selector
       const rebalanceSignature = 'rebalance(string,string,uint256)';
-      const rebalanceSelector = slice(
-        keccak256(toHex(rebalanceSignature)),
-        0,
-        4
-      );
+      const rebalanceSelector = slice(keccak256(toHex(rebalanceSignature)), 0, 4);
 
       // AllowedTargetsEnforcer terms = address[]
       const targetTerms = encodeAbiParameters(
         [{ type: 'address[]' }],
-        [[ADAPTER_CONTRACT_ADDRESS]]
+        [[adapterAddress]]
       );
 
       // AllowedMethodsEnforcer terms = (address, bytes4[])[]
@@ -116,16 +112,14 @@ export default function DelegateManager({
             ],
           },
         ],
-        [[{ target: ADAPTER_CONTRACT_ADDRESS, selectors: [rebalanceSelector] }]]
+        [[{ target: adapterAddress, selectors: [rebalanceSelector] }]]
       );
 
-      // Caveats
       const caveats = [
         { enforcer: ALLOWED_TARGETS_ENFORCER, terms: targetTerms },
         { enforcer: ALLOWED_METHODS_ENFORCER, terms: methodsTerms },
       ];
 
-      // Encode + hash caveats → authority
       const encodedCaveats = encodeAbiParameters(
         [
           {
@@ -141,18 +135,16 @@ export default function DelegateManager({
       );
       const authority = keccak256(encodedCaveats);
 
-      // Delegation object
       const ZERO_SALT: Hex =
         '0x0000000000000000000000000000000000000000000000000000000000000000';
 
       const delegation = {
-        delegate: AGENT_ADDRESS,
+        delegate: agentAddress,
         authority,
         caveats,
         salt: ZERO_SALT,
       };
 
-      // Sign typed data
       const signature = await smartAccount.signTypedData({
         domain: {
           name: 'DelegationManager',
