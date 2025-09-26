@@ -91,7 +91,7 @@ export default function SmartAccountManager() {
               {/* 2. Add the DelegateManager here */}
              <DelegateManager
   smartAccountAddress={smartAccountAddress}
-  agentAddress={'0x8f6b970b9f25b19f13115bdc7a34514d0f6971d1'}
+  agentAddress={eoa as Address}
   adapterAddress={'0x3ed79496b6b5f2aed1e2b8203df783bbe39e9002'}
 />
 
