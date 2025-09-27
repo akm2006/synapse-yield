@@ -91,10 +91,9 @@ export async function sendUserOperation(
   return { userOpHash, receipt };
 }
 
-// Helper to compute a minAmountOut with slippage tolerance (conservative demo formula)
+// Helper to compute a minAmountOut with slippage tolerance
 export function applySlippage(amount: bigint, slippageBps = SLIPPAGE_BPS): bigint {
   const ratio = 1 - bpsToRatio(slippageBps);
-  // Convert to BigInt safely: amount * ratio (using 1e6 fixed for integer math)
   const SCALE = 1_000_000n;
   const scaled = (amount * BigInt(Math.floor(ratio * Number(SCALE)))) / SCALE;
   return scaled < 0n ? 0n : scaled;

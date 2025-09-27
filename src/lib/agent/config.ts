@@ -3,7 +3,6 @@ import type { Address } from 'viem';
 import { monad, BUNDLER_RPC_URL } from '@/lib/viemClients';
 import { getDeleGatorEnvironment } from '@metamask/delegation-toolkit';
 import { synapseYieldAdapterAbi } from '@/lib/abi';
-// Reuse addresses from your protocolAbis to avoid duplication
 import { kintsuAddress, magmaAddress, gMonAddress } from '@/lib/protocolAbis';
 
 export const CHAIN = monad;
@@ -22,16 +21,19 @@ export const REBALANCE_THRESHOLD_PCT = 5.0;
 // Slippage tolerance in basis points (e.g., 50 = 0.5%)
 export const SLIPPAGE_BPS = 50;
 
-// EntryPoint address override (if known); leave empty to only run check-only mode safely
+// EntryPoint address (leave empty for testnet safety)
 export const ENTRYPOINT_ADDRESS = (process.env.NEXT_PUBLIC_ENTRYPOINT_ADDRESS || '') as Address;
 
 // Agent private key must be set server-side
 export const AGENT_PRIVATE_KEY = process.env.AGENT_PRIVATE_KEY as `0x${string}`;
 
-// Pimlico bundler RPC (already configured in viemClients)
+// Execution mode toggle
+export const EXECUTE_MODE = process.env.AGENT_EXECUTE === 'true';
+
+// Pimlico bundler RPC
 export const PIMLICO_BUNDLER_URL = BUNDLER_RPC_URL;
 
-// Delegation environment (DelegationManager address etc.)
+// Delegation environment
 export const DELEGATION_ENV = getDeleGatorEnvironment(CHAIN.id);
 
 // Adapter ABI
