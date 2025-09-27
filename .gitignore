@@ -39,3 +39,10 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+#test files
+check-balances.js
+decode-rebalance.js
+deposit-entrypoint.js
+rebalance-direct.js
+transfer-smon.js

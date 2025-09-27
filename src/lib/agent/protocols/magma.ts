@@ -51,7 +51,7 @@ export async function fetchMagmaMetricsWithAPY() {
 
   return {
     magmaTVL: tvl,
-    magmaAPY: 2, // Fixed placeholder until mainnet (reasonable estimate vs Kintsu's ~3.15%)
+    magmaAPY: 5, // Fixed placeholder until mainnet (reasonable estimate vs Kintsu's ~3.15%)
     magmaIndexWei: await getMagmaIndexWei(),
   };
 }

@@ -16,7 +16,7 @@ export const PROTOCOL_ADDRESSES = {
 } as const;
 
 // Threshold in percent APY improvement required to rebalance (e.g., 5.0 = 5%)
-export const REBALANCE_THRESHOLD_PCT = 5.0;
+export const REBALANCE_THRESHOLD_PCT = 1.0;
 
 // Slippage tolerance in basis points (e.g., 50 = 0.5%)
 export const SLIPPAGE_BPS = 50;
