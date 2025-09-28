@@ -2,7 +2,7 @@
 import { Address, formatUnits, parseUnits } from 'viem';
 import { publicClient } from '@/lib/viemClients';
 import { CONTRACTS } from './config';
-import { kintsuStakedMonadAbi, magmaStakeManagerAbi, gMonTokenAbi } from '@/lib/abis/index';
+import { kintsuStakedMonadAbi, magmaStakeManagerAbi, gMonTokenAbi } from '@/lib/abis';
 
 export interface Position {
   protocol: 'Kintsu' | 'Magma';
@@ -11,14 +11,6 @@ export interface Position {
   valueInMON: bigint;
   valueInMONFormatted: string;
   shares?: bigint; // For Kintsu
-  unlockRequests?: UnlockRequest[]; // For Kintsu pending unlocks
-}
-
-export interface UnlockRequest {
-  unlockIndex: number;
-  shares: bigint;
-  ready: boolean;
-  valueInMON: bigint;
 }
 
 export interface UserPositions {
@@ -28,29 +20,14 @@ export interface UserPositions {
   totalValueMONFormatted: string;
 }
 
-// Type for unlock request from contract
-interface ContractUnlockRequest {
-  unlockIndex: bigint;
-  shares: bigint;
-  claimed: boolean;
-}
-
 export async function getCurrentPositions(userAddress: Address): Promise<UserPositions> {
   try {
-    // Get Kintsu position
-    const [kintsuShares, kintsuUnlocks] = await Promise.all([
-      getKintsuPosition(userAddress),
-      getKintsuUnlockRequests(userAddress)
-    ]);
-
-    // Get Magma position  
+    const kintsuShares = await getKintsuPosition(userAddress);
     const magmaBalance = await getMagmaPosition(userAddress);
-
-    // Calculate total value
     const totalValueMON = kintsuShares.valueInMON + magmaBalance.valueInMON;
 
     return {
-      kintsu: { ...kintsuShares, unlockRequests: kintsuUnlocks },
+      kintsu: kintsuShares,
       magma: magmaBalance,
       totalValueMON,
       totalValueMONFormatted: formatUnits(totalValueMON, 18)
@@ -65,14 +42,12 @@ export async function getCurrentPositions(userAddress: Address): Promise<UserPos
 async function getKintsuPosition(userAddress: Address): Promise<Position> {
   try {
     const [shares, totalSupply] = await Promise.all([
-      // User's sMON balance (shares)
       publicClient.readContract({
         address: CONTRACTS.KINTSU_STAKED_MONAD,
         abi: kintsuStakedMonadAbi,
         functionName: 'balanceOf',
         args: [userAddress]
       }) as Promise<bigint>,
-      // Total sMON supply  
       publicClient.readContract({
         address: CONTRACTS.KINTSU_STAKED_MONAD,
         abi: kintsuStakedMonadAbi,
@@ -80,7 +55,6 @@ async function getKintsuPosition(userAddress: Address): Promise<Position> {
       }) as Promise<bigint>
     ]);
 
-    // Convert shares to MON value using convertToAssets if available, or 1:1 fallback
     let valueInMON: bigint;
     try {
       valueInMON = await publicClient.readContract({
@@ -90,8 +64,7 @@ async function getKintsuPosition(userAddress: Address): Promise<Position> {
         args: [shares]
       }) as bigint;
     } catch {
-      // Fallback to 1:1 conversion if convertToAssets fails
-      valueInMON = shares;
+      valueInMON = shares; // Fallback to 1:1 conversion
     }
 
     return {
@@ -124,8 +97,6 @@ async function getMagmaPosition(userAddress: Address): Promise<Position> {
       args: [userAddress]
     }) as bigint;
 
-    // For gMON, assume 1:1 with MON for now (or calculate exchange rate)
-    // In production, you'd want to get the actual gMON price from the contract
     const valueInMON = gMonBalance; // Simplified - gMON appreciates vs MON over time
 
     return {
@@ -147,32 +118,10 @@ async function getMagmaPosition(userAddress: Address): Promise<Position> {
   }
 }
 
-async function getKintsuUnlockRequests(userAddress: Address): Promise<UnlockRequest[]> {
-  try {
-    const unlockRequests = await publicClient.readContract({
-      address: CONTRACTS.KINTSU_STAKED_MONAD,
-      abi: kintsuStakedMonadAbi,
-      functionName: 'getUserUnlockRequests',
-      args: [userAddress]
-    }) as ContractUnlockRequest[];
-
-    return unlockRequests.map((request: ContractUnlockRequest, index: number) => ({
-      unlockIndex: Number(request.unlockIndex),
-      shares: request.shares,
-      ready: !request.claimed, // Simplified - you'd check batch status
-      valueInMON: request.shares // Convert using exchange rate
-    }));
-
-  } catch (error) {
-    console.warn('Could not fetch unlock requests:', error);
-    return [];
-  }
-}
-
 export async function hasMinimumBalance(userAddress: Address, protocol: 'Kintsu' | 'Magma'): Promise<boolean> {
   try {
     const positions = await getCurrentPositions(userAddress);
-    const minBalance = parseUnits("0.01", 18); // 0.01 MON minimum
+    const minBalance = parseUnits("0.01", 18);
     
     if (protocol === 'Kintsu') {
       return positions.kintsu.valueInMON >= minBalance;
@@ -195,17 +144,12 @@ export async function getTotalBalance(userAddress: Address): Promise<bigint> {
   }
 }
 
-// Helper function to get protocol APY (placeholder)
 export async function getProtocolAPY(protocol: 'Kintsu' | 'Magma'): Promise<number> {
   try {
     if (protocol === 'Kintsu') {
-      // Get Kintsu exchange rate change over time
-      // This is a placeholder - implement actual APY calculation
-      return 5.2; // 5.2% APY
+      return 5.2; // 5.2% APY placeholder
     } else {
-      // Get Magma staking rewards rate
-      // This is a placeholder - implement actual APY calculation  
-      return 4.8; // 4.8% APY
+      return 4.8; // 4.8% APY placeholder
     }
   } catch (error) {
     console.warn(`Error getting ${protocol} APY:`, error);

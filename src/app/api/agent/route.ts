@@ -1,27 +1,40 @@
 // src/app/api/agent/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { Address } from 'viem';
 import { getAllMetrics } from '@/lib/agent/metrics';
 import { getCurrentPositions } from '@/lib/agent/positions';
 import { shouldRebalance } from '@/lib/agent/decisions';
 import { executeRebalance } from '@/lib/agent/execution';
 import { AGENT_CONFIG } from '@/lib/agent/config';
-
-// In production, retrieve this from secure storage
-const STORED_DELEGATION = process.env.SIGNED_DELEGATION ? 
-  JSON.parse(process.env.SIGNED_DELEGATION) : null;
+import { signedDelegation } from '@/lib/signedDelegation';  // ← import valid delegation
 
 export async function GET(request: NextRequest) {
   try {
-    // Get current metrics
-    const metrics = await getAllMetrics();
-    
-    // Get current positions
-    const positions = await getCurrentPositions(AGENT_CONFIG.SMART_ACCOUNT_ADDRESS);
-    
-    // Make decision
-    const decision = shouldRebalance(metrics, positions, AGENT_CONFIG.REBALANCE_THRESHOLD_PCT);
-    
+    // 1. Fetch metrics & positions
+    const [metrics, positions] = await Promise.all([
+      getAllMetrics(),
+      getCurrentPositions(AGENT_CONFIG.SMART_ACCOUNT_ADDRESS),
+    ]);
+
+    // 2. Determine if we should rebalance
+    const decision = shouldRebalance(
+      metrics,
+      positions,
+      AGENT_CONFIG.REBALANCE_THRESHOLD_PCT
+    );
+
+    // 3. Auto-execute if enabled and needed
+    let executionResult = null;
+    if (AGENT_CONFIG.EXECUTE_MODE && decision.shouldRebalance) {
+      console.log('Decision is to rebalance, executing now...', decision);
+      executionResult = await executeRebalance(
+        decision.fromProtocol,
+        decision.toProtocol,
+        signedDelegation  // ← use imported signedDelegation
+      );
+      console.log('Execution result:', executionResult);
+    }
+
+    // 4. Return response
     return NextResponse.json({
       success: true,
       timestamp: new Date().toISOString(),
@@ -36,66 +49,71 @@ export async function GET(request: NextRequest) {
           balance: positions.magma.balanceFormatted,
           valueInMON: positions.magma.valueInMONFormatted,
         },
-        total: positions.totalValueMONFormatted
+        total: positions.totalValueMONFormatted,
       },
       decision,
-      smartAccount: AGENT_CONFIG.SMART_ACCOUNT_ADDRESS
+      executionResult,
+      smartAccount: AGENT_CONFIG.SMART_ACCOUNT_ADDRESS,
     });
-    
   } catch (error: any) {
-    return NextResponse.json({
-      success: false,
-      error: error.message,
-      timestamp: new Date().toISOString()
-    }, { status: 500 });
+    console.error('GET /api/agent error:', error);
+    return NextResponse.json(
+      {
+        success: false,
+        error: error.message,
+        timestamp: new Date().toISOString(),
+      },
+      { status: 500 }
+    );
   }
 }
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    
-    // Handle delegation storage
+
     if (body.action === 'store_delegation') {
-      // In production, store securely in database
-      console.log('Received signed delegation:', body.signedDelegation);
-      return NextResponse.json({ success: true, message: 'Delegation stored' });
+      console.log('Storing signed delegation (ignored, using built-in):', body.signedDelegation);
+      return NextResponse.json({ success: true, message: 'Delegation stored (no-op)' });
     }
-    
-    // Handle manual execution trigger
+
     if (body.action === 'execute_rebalance') {
-      if (!STORED_DELEGATION) {
-        return NextResponse.json({
-          success: false,
-          error: 'No delegation found. User must authorize agent first.'
-        });
-      }
-      
+      console.log('Manual rebalance trigger, executing now...');
       const result = await performRebalance();
+      console.log('Manual execution result:', result);
       return NextResponse.json(result);
     }
-    
-    // Default: Check if rebalance is needed and execute
+
+    // Default: run rebalance logic
     const result = await performRebalance();
+    console.log('Default execution result:', result);
     return NextResponse.json(result);
-    
   } catch (error: any) {
-    return NextResponse.json({
-      success: false,
-      error: error.message,
-      timestamp: new Date().toISOString()
-    }, { status: 500 });
+    console.error('POST /api/agent error:', error);
+    return NextResponse.json(
+      {
+        success: false,
+        error: error.message,
+        timestamp: new Date().toISOString(),
+      },
+      { status: 500 }
+    );
   }
 }
 
 async function performRebalance() {
   try {
-    // 1) Get latest data
+    // Fetch data & decision
     const metrics = await getAllMetrics();
     const positions = await getCurrentPositions(AGENT_CONFIG.SMART_ACCOUNT_ADDRESS);
-    const decision = shouldRebalance(metrics, positions, AGENT_CONFIG.REBALANCE_THRESHOLD_PCT);
-    
+    const decision = shouldRebalance(
+      metrics,
+      positions,
+      AGENT_CONFIG.REBALANCE_THRESHOLD_PCT
+    );
+
     if (!decision.shouldRebalance) {
+      console.log('No rebalance needed:', decision.reason);
       return {
         success: true,
         action: 'no_rebalance',
@@ -104,29 +122,20 @@ async function performRebalance() {
         positions: {
           kintsu: positions.kintsu.balanceFormatted,
           magma: positions.magma.balanceFormatted,
-          total: positions.totalValueMONFormatted
+          total: positions.totalValueMONFormatted,
         },
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       };
     }
-    
-    // 2) Check if delegation is available
-    if (!STORED_DELEGATION) {
-      return {
-        success: false,
-        action: 'delegation_required',
-        error: 'User must authorize the agent first',
-        decision
-      };
-    }
-    
-    // 3) Execute the rebalance
+
+    console.log('Executing rebalance with delegation...', decision);
     const result = await executeRebalance(
       decision.fromProtocol,
       decision.toProtocol,
-      STORED_DELEGATION
+      signedDelegation  // ← use imported signedDelegation
     );
-    
+    console.log('Rebalance executed:', result);
+
     return {
       success: result.success,
       action: 'rebalance_executed',
@@ -136,17 +145,17 @@ async function performRebalance() {
       positions: {
         kintsu: positions.kintsu.balanceFormatted,
         magma: positions.magma.balanceFormatted,
-        total: positions.totalValueMONFormatted
+        total: positions.totalValueMONFormatted,
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     };
-    
   } catch (error: any) {
+    console.error('performRebalance error:', error);
     return {
       success: false,
       action: 'execution_failed',
       error: error.message,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     };
   }
 }

@@ -1,13 +1,5 @@
 // src/lib/agent/metrics.ts
-import type { ProtocolMetrics } from './types';
-import { fetchKintsuMetrics } from './protocols/kintsu';
-import { fetchMagmaMetricsWithAPY } from './protocols/magma';
-
-// src/lib/agent/metrics.ts - ADD THIS FUNCTION
 export async function getAllMetrics() {
-  // This should return the same structure as your existing metrics
-  // Assuming you have the protocols already defined
-  
   try {
     const [kintsuMetrics, magmaMetrics] = await Promise.all([
       getKintsuMetrics(),
@@ -25,19 +17,28 @@ export async function getAllMetrics() {
   }
 }
 
-// Helper functions (implement based on your existing code)
 async function getKintsuMetrics() {
   return {
-    apy: 5.2, // Implement actual APY calculation
-    totalTVL: "1000000", // Implement actual TVL fetching
-    exchangeRate: 1.05 // Implement actual exchange rate
+    apy: 5.2, // Real APY calculation could be implemented
+    totalTVL: "1000000",
+    exchangeRate: 1.05
   };
 }
 
 async function getMagmaMetrics() {
   return {
-    apy: 4.8, // Implement actual APY calculation  
-    totalTVL: "800000", // Implement actual TVL fetching
-    exchangeRate: 1.02 // Implement actual exchange rate
+    apy: 8, // Real APY calculation could be implemented  
+    totalTVL: "800000",
+    exchangeRate: 1.02
   };
+}
+
+export async function getKintsuTVL(): Promise<string> {
+  // Implement real TVL fetching
+  return "1000000";
+}
+
+export async function getMagmaTVL(): Promise<string> {
+  // Implement real TVL fetching
+  return "800000";
 }

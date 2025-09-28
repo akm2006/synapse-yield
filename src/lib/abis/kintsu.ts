@@ -1,23 +1,112 @@
-// src/lib/abis/kintsu.ts
 export const kintsuStakedMonadAbi = [
+  {
+    "inputs": [{"internalType": "address", "name": "account", "type": "address"}],
+    "name": "balanceOf",
+    "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "totalSupply",
+    "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [{"internalType": "uint256", "name": "shares", "type": "uint256"}],
+    "name": "convertToAssets",
+    "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {"internalType": "uint96", "name": "amount", "type": "uint96"},
+      {"internalType": "address", "name": "receiver", "type": "address"}
+    ],
+    "name": "deposit",
+    "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}],
+    "stateMutability": "payable",
+    "type": "function"
+  },
+  {
+    "inputs": [{"internalType": "uint96", "name": "shares", "type": "uint96"}],
+    "name": "requestUnlock",
+    "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {"internalType": "uint256", "name": "unlockIndex", "type": "uint256"},
+      {"internalType": "address", "name": "receiver", "type": "address"}
+    ],
+    "name": "redeem",
+    "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [{"internalType": "address", "name": "user", "type": "address"}],
+    "name": "getUserUnlockRequests",
+    "outputs": [
+      {
+        "components": [
+          {"internalType": "uint256", "name": "unlockIndex", "type": "uint256"},
+          {"internalType": "uint96", "name": "shares", "type": "uint96"},
+          {"internalType": "bool", "name": "claimed", "type": "bool"}
+        ],
+        "internalType": "struct UnlockRequest[]",
+        "name": "",
+        "type": "tuple[]"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
   // View functions
-  "function balanceOf(address account) view returns (uint256)",
-  "function totalSupply() view returns (uint256)", 
-  "function convertToAssets(uint256 shares) view returns (uint256)",
-  "function convertToShares(uint256 assets) view returns (uint256)",
-  "function previewDeposit(uint256 assets) view returns (uint256)",
-  "function previewRedeem(uint256 shares) view returns (uint256)",
-  
-  // Deposit functions
-  "function deposit(uint96 amount, address receiver) payable returns (uint256)",
-  "function mint(uint96 shares, address receiver) payable returns (uint256)",
-  
-  // Unlock/Redeem functions (async)
-  "function requestUnlock(uint96 shares) returns (uint256)", 
-  "function redeem(uint256 unlockIndex, address receiver) returns (uint256)",
-  "function cancelUnlockRequest(uint256 unlockIndex)",
-  
-  // Unlock info
-  "function getUserUnlockRequests(address user) view returns (tuple(uint256 unlockIndex, uint96 shares, bool claimed)[])",
-  "function getUnlockRequest(uint256 unlockIndex) view returns (uint96 shares, bool ready, address owner)",
+  {
+    "inputs": [{"internalType":"address","name":"account","type":"address"}],
+    "name":"balanceOf","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],
+    "stateMutability":"view","type":"function"
+  },
+  // ... other existing entries ...
+  {
+    "inputs":[{"internalType":"uint96","name":"assets","type":"uint96"},{"internalType":"address","name":"receiver","type":"address"}],
+    "name":"deposit","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],
+    "stateMutability":"payable","type":"function"
+  },
+  {
+    "inputs":[{"internalType":"uint96","name":"shares","type":"uint96"},{"internalType":"address","name":"receiver","type":"address"}],
+    "name":"mint","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],
+    "stateMutability":"payable","type":"function"
+  },
+  {
+    "inputs":[{"internalType":"uint96","name":"shares","type":"uint96"}],
+    "name":"requestUnlock","outputs":[],"stateMutability":"nonpayable","type":"function"
+  },
+  {
+    "inputs":[{"internalType":"uint256","name":"unlockIndex","type":"uint256"},{"internalType":"address","name":"receiver","type":"address"}],
+    "name":"redeem","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],
+    "stateMutability":"nonpayable","type":"function"
+  },
+  {
+    "inputs":[{"internalType":"uint256","name":"unlockIndex","type":"uint256"}],
+    "name":"cancelUnlockRequest","outputs":[],"stateMutability":"nonpayable","type":"function"
+  },
+
+  // *NEW* ERC-20 approve
+  {
+    "inputs":[{"internalType":"address","name":"spender","type":"address"},{"internalType":"uint256","name":"amount","type":"uint256"}],
+    "name":"approve","outputs":[{"internalType":"bool","name":"","type":"bool"}],
+    "stateMutability":"nonpayable","type":"function"
+  },
+
+  // Optional: balanceOf allowance if needed
+  {
+    "inputs":[{"internalType":"address","name":"owner","type":"address"},{"internalType":"address","name":"spender","type":"address"}],
+    "name":"allowance","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],
+    "stateMutability":"view","type":"function"
+  }
 ] as const;

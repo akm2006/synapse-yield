@@ -26,6 +26,7 @@ export interface RebalanceDecision {
     magma: string;
     total: string;
   };
+  swapRoute?: string;
 }
 
 export function shouldRebalance(
@@ -37,19 +38,21 @@ export function shouldRebalance(
   const kintsuAPY = metrics.kintsu.apy;
   const magmaAPY = metrics.magma.apy;
   
-  // Determine which protocol has better yield
   const kintsuBetter = kintsuAPY > magmaAPY;
   const betterProtocol = kintsuBetter ? 'Kintsu' : 'Magma';
   const worseProtocol = kintsuBetter ? 'Magma' : 'Kintsu';
   const improvementPct = Math.abs(kintsuAPY - magmaAPY);
   
-  // Check if user has balance in the worse protocol
   const hasBalanceInWorse = kintsuBetter 
     ? positions.magma.valueInMON > 0n
     : positions.kintsu.valueInMON > 0n;
   
-  // Check if improvement exceeds threshold
-  const meetsThreshold = improvementPct >= thresholdPct;
+  // Account for DEX swap costs when moving FROM Kintsu
+  const effectiveImprovementPct = (worseProtocol === 'Kintsu') 
+    ? improvementPct - 0.3 // Subtract ~0.3% for DEX fees
+    : improvementPct;
+  
+  const meetsThreshold = effectiveImprovementPct >= thresholdPct;
   
   const currentPositions = {
     kintsu: positions.kintsu.balanceFormatted,
@@ -57,26 +60,32 @@ export function shouldRebalance(
     total: positions.totalValueMONFormatted
   };
   
-  // Decision logic
+  const swapRoute = worseProtocol === 'Kintsu' 
+    ? 'via PancakeSwap (instant)'
+    : 'direct (instant)';
+  
   if (!hasBalanceInWorse) {
     return {
       shouldRebalance: false,
       fromProtocol: worseProtocol as 'Kintsu' | 'Magma',
       toProtocol: betterProtocol as 'Kintsu' | 'Magma',
-      improvementPct,
+      improvementPct: effectiveImprovementPct,
       reason: `Already optimized: no balance in ${worseProtocol}`,
-      currentPositions
+      currentPositions,
+      swapRoute
     };
   }
   
   if (!meetsThreshold) {
+    const swapCostNote = worseProtocol === 'Kintsu' ? ' (after DEX fees)' : '';
     return {
       shouldRebalance: false,
       fromProtocol: worseProtocol as 'Kintsu' | 'Magma',
       toProtocol: betterProtocol as 'Kintsu' | 'Magma',
-      improvementPct,
-      reason: `Improvement ${improvementPct.toFixed(2)}% below threshold ${thresholdPct}%`,
-      currentPositions
+      improvementPct: effectiveImprovementPct,
+      reason: `Improvement ${effectiveImprovementPct.toFixed(2)}%${swapCostNote} below threshold ${thresholdPct}%`,
+      currentPositions,
+      swapRoute
     };
   }
   
@@ -84,9 +93,10 @@ export function shouldRebalance(
     shouldRebalance: true,
     fromProtocol: worseProtocol as 'Kintsu' | 'Magma',
     toProtocol: betterProtocol as 'Kintsu' | 'Magma',
-    improvementPct,
-    reason: `Rebalancing ${worseProtocol} → ${betterProtocol} for ${improvementPct.toFixed(2)}% improvement`,
-    currentPositions
+    improvementPct: effectiveImprovementPct,
+    reason: `Rebalancing ${worseProtocol} → ${betterProtocol} ${swapRoute} for ${effectiveImprovementPct.toFixed(2)}% improvement`,
+    currentPositions,
+    swapRoute
   };
 }
 
@@ -96,7 +106,7 @@ export function getOptimalProtocol(metrics: Metrics): 'Kintsu' | 'Magma' {
 
 export function formatDecision(decision: RebalanceDecision): string {
   if (decision.shouldRebalance) {
-    return `🔄 ${decision.fromProtocol} → ${decision.toProtocol} (+${decision.improvementPct.toFixed(2)}%)`;
+    return `🔄 ${decision.fromProtocol} → ${decision.toProtocol} (+${decision.improvementPct.toFixed(2)}%) ${decision.swapRoute}`;
   } else {
     return `✅ ${decision.reason}`;
   }
