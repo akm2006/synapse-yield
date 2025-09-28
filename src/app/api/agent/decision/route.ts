@@ -1,77 +1,67 @@
 // src/app/api/agent/decision/route.ts
-import { NextResponse } from 'next/server';
-import { createWalletClient, http } from 'viem';
-import { privateKeyToAccount } from 'viem/accounts';
-import {
-  CHAIN,
-  DELEGATION_ENV,
-  REBALANCE_THRESHOLD_PCT,
-  AGENT_PRIVATE_KEY,
-  EXECUTE_MODE,
-} from '@/lib/agent/config';
-import { publicClient } from '@/lib/viemClients';
-import {
-  toMetaMaskSmartAccount,
-  Implementation,
-} from '@metamask/delegation-toolkit';
+import { NextRequest, NextResponse } from 'next/server';
+import { Address } from 'viem';
+
 import { getAllMetrics } from '@/lib/agent/metrics';
-import { getUserPosition } from '@/lib/agent/positions';
-import { determineOptimalProtocol, shouldRebalance } from '@/lib/agent/decisions';
-import { toJSONSafe } from '@/lib/agent/serialize';
-import type { Address } from 'viem';
+import { getCurrentPositions } from '@/lib/agent/positions';
+import { shouldRebalance, getOptimalProtocol } from '@/lib/agent/decisions';
+import { AGENT_CONFIG } from '@/lib/agent/config';
 
-const json = (v: any, init?: ResponseInit) =>
-  NextResponse.json(toJSONSafe(v), init);
-
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    if (!AGENT_PRIVATE_KEY) {
-      throw new Error('AGENT_PRIVATE_KEY is not set');
-    }
-
-    // Create agent smart account (needed for position checking)
-    const agentEOA = privateKeyToAccount(AGENT_PRIVATE_KEY);
-    const agentSA = await toMetaMaskSmartAccount({
-      client: publicClient,
-      implementation: Implementation.Hybrid,
-      signer: { account: agentEOA },
-      environment: DELEGATION_ENV,
-      deployParams: [agentEOA.address, [], [], []],
-      deploySalt: '0x',
-    });
-
-    // Get current state
-    const [metrics, position] = await Promise.all([
+    // Get current metrics and positions
+    const [metrics, positions] = await Promise.all([
       getAllMetrics(),
-      getUserPosition(agentSA.address as Address),
+      getCurrentPositions(AGENT_CONFIG.SMART_ACCOUNT_ADDRESS)
     ]);
 
-    // Make decision
-    const optimal = determineOptimalProtocol(metrics);
-    const decision = position 
-      ? shouldRebalance(position.protocol, optimal, metrics, REBALANCE_THRESHOLD_PCT)
-      : {
-          shouldRebalance: false,
-          reason: 'No current position found',
-        };
+    // Determine optimal protocol and rebalance decision
+    const optimalProtocol = getOptimalProtocol(metrics);
+    const decision = shouldRebalance(metrics, positions, AGENT_CONFIG.REBALANCE_THRESHOLD_PCT);
 
-    return json({
+    return NextResponse.json({
       success: true,
-      metrics,
-      position,
-      optimalProtocol: optimal,
-      decision,
-      agentAddress: agentSA.address,
-      executeMode: EXECUTE_MODE,
       timestamp: new Date().toISOString(),
-    });
-  } catch (error: any) {
-    return json(
-      { 
-        success: false, 
-        error: error.message ?? String(error) 
+      smartAccount: AGENT_CONFIG.SMART_ACCOUNT_ADDRESS,
+      executeMode: AGENT_CONFIG.EXECUTE_MODE,
+      
+      // Current metrics
+      metrics,
+      
+      // Current positions
+      positions: {
+        kintsu: {
+          balance: positions.kintsu.balanceFormatted,
+          valueInMON: positions.kintsu.valueInMONFormatted,
+          unlockRequests: positions.kintsu.unlockRequests?.length || 0
+        },
+        magma: {
+          balance: positions.magma.balanceFormatted,
+          valueInMON: positions.magma.valueInMONFormatted
+        },
+        total: {
+          valueInMON: positions.totalValueMONFormatted
+        }
       },
-      { status: 500 }
-    );
+      
+      // Decision analysis
+      optimalProtocol,
+      decision: {
+        shouldRebalance: decision.shouldRebalance,
+        fromProtocol: decision.fromProtocol,
+        toProtocol: decision.toProtocol,
+        improvementPct: decision.improvementPct,
+        reason: decision.reason
+      }
+    });
+
+  } catch (error: any) {
+    console.error('Decision API error:', error);
+    
+    return NextResponse.json({
+      success: false,
+      error: error.message || 'Failed to analyze decision',
+      timestamp: new Date().toISOString()
+    }, { status: 500 });
   }
 }

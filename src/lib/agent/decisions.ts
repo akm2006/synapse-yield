@@ -1,51 +1,103 @@
 // src/lib/agent/decisions.ts
-import type { ProtocolMetrics, DecisionResult, ProtocolName } from './types';
+import { UserPositions } from './positions';
 
-export function determineOptimalProtocol(metrics: ProtocolMetrics): ProtocolName {
-  const kAPY = metrics.kintsuAPY ?? 0;
-  const mAPY = metrics.magmaAPY ?? 0;
-  return kAPY >= mAPY ? 'Kintsu' : 'Magma';
+export interface Metrics {
+  kintsu: {
+    apy: number;
+    totalTVL: string;
+    exchangeRate?: number;
+  };
+  magma: {
+    apy: number;
+    totalTVL: string;
+    exchangeRate?: number;
+  };
+  timestamp: string;
+}
+
+export interface RebalanceDecision {
+  shouldRebalance: boolean;
+  fromProtocol: 'Kintsu' | 'Magma';
+  toProtocol: 'Kintsu' | 'Magma';
+  improvementPct: number;
+  reason: string;
+  currentPositions: {
+    kintsu: string;
+    magma: string;
+    total: string;
+  };
 }
 
 export function shouldRebalance(
-  current: ProtocolName,
-  optimal: ProtocolName,
-  metrics: ProtocolMetrics,
+  metrics: Metrics,
+  positions: UserPositions,
   thresholdPct: number
-): DecisionResult {
-  // Always include from/to for clarity
-  const base: Partial<DecisionResult> = {
-    fromProtocol: current,
-    toProtocol: optimal,
+): RebalanceDecision {
+  
+  const kintsuAPY = metrics.kintsu.apy;
+  const magmaAPY = metrics.magma.apy;
+  
+  // Determine which protocol has better yield
+  const kintsuBetter = kintsuAPY > magmaAPY;
+  const betterProtocol = kintsuBetter ? 'Kintsu' : 'Magma';
+  const worseProtocol = kintsuBetter ? 'Magma' : 'Kintsu';
+  const improvementPct = Math.abs(kintsuAPY - magmaAPY);
+  
+  // Check if user has balance in the worse protocol
+  const hasBalanceInWorse = kintsuBetter 
+    ? positions.magma.valueInMON > 0n
+    : positions.kintsu.valueInMON > 0n;
+  
+  // Check if improvement exceeds threshold
+  const meetsThreshold = improvementPct >= thresholdPct;
+  
+  const currentPositions = {
+    kintsu: positions.kintsu.balanceFormatted,
+    magma: positions.magma.balanceFormatted,
+    total: positions.totalValueMONFormatted
   };
-
-  if (current === optimal) {
+  
+  // Decision logic
+  if (!hasBalanceInWorse) {
     return {
       shouldRebalance: false,
-      ...base,
-      reason: 'Already in optimal protocol',
+      fromProtocol: worseProtocol as 'Kintsu' | 'Magma',
+      toProtocol: betterProtocol as 'Kintsu' | 'Magma',
+      improvementPct,
+      reason: `Already optimized: no balance in ${worseProtocol}`,
+      currentPositions
     };
   }
-
-  const kAPY = metrics.kintsuAPY ?? 0;
-  const mAPY = metrics.magmaAPY ?? 0;
-  const currentAPY = current === 'Kintsu' ? kAPY : mAPY;
-  const optimalAPY = optimal === 'Kintsu' ? kAPY : mAPY;
-  const improvement = optimalAPY - currentAPY;
-
-  if (improvement <= thresholdPct) {
+  
+  if (!meetsThreshold) {
     return {
       shouldRebalance: false,
-      ...base,
-      improvementPct: improvement,
-      reason: `Improvement ${improvement.toFixed(2)}% below threshold ${thresholdPct.toFixed(2)}%`,
+      fromProtocol: worseProtocol as 'Kintsu' | 'Magma',
+      toProtocol: betterProtocol as 'Kintsu' | 'Magma',
+      improvementPct,
+      reason: `Improvement ${improvementPct.toFixed(2)}% below threshold ${thresholdPct}%`,
+      currentPositions
     };
   }
-
+  
   return {
     shouldRebalance: true,
-    ...base,
-    improvementPct: improvement,
-    reason: `Improvement ${improvement.toFixed(2)}% exceeds threshold ${thresholdPct.toFixed(2)}%`,
+    fromProtocol: worseProtocol as 'Kintsu' | 'Magma',
+    toProtocol: betterProtocol as 'Kintsu' | 'Magma',
+    improvementPct,
+    reason: `Rebalancing ${worseProtocol} → ${betterProtocol} for ${improvementPct.toFixed(2)}% improvement`,
+    currentPositions
   };
+}
+
+export function getOptimalProtocol(metrics: Metrics): 'Kintsu' | 'Magma' {
+  return metrics.kintsu.apy > metrics.magma.apy ? 'Kintsu' : 'Magma';
+}
+
+export function formatDecision(decision: RebalanceDecision): string {
+  if (decision.shouldRebalance) {
+    return `🔄 ${decision.fromProtocol} → ${decision.toProtocol} (+${decision.improvementPct.toFixed(2)}%)`;
+  } else {
+    return `✅ ${decision.reason}`;
+  }
 }

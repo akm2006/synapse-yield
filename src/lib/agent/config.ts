@@ -41,3 +41,25 @@ export const ADAPTER_ABI = synapseYieldAdapterAbi;
 
 // Helper: convert bps to ratio (e.g., 50 -> 0.005)
 export const bpsToRatio = (bps: number) => Math.max(0, bps) / 10_000;
+// Contract addresses on Monad testnet
+export const CONTRACTS = {
+  KINTSU_STAKED_MONAD: "0xe1d2439b75fb9746E7Bc6cB777Ae10AA7f7ef9c5" as Address,
+  MAGMA_STAKE_MANAGER: "0x2c9C959516e9AAEdB2C748224a41249202ca8BE7" as Address,
+  MAGMA_GMON_TOKEN: "0xaEef2f6B429Cb59C9B2D7bB2141ADa993E8571c3" as Address,
+} as const;
+
+// Agent configuration
+export const AGENT_CONFIG = {
+  PRIVATE_KEY: process.env.AGENT_PRIVATE_KEY!,
+  EOA_ADDRESS: "0xFE5AB50d48cf989616A4173083aF646d613fc857" as Address,
+  SMART_ACCOUNT_ADDRESS: "0x4a402f781Cd83Ff77F4658C827d91FEc552619E2" as Address, // Update with actual
+  REBALANCE_THRESHOLD_PCT: 0.5, // 0.5% improvement required
+  EXECUTE_MODE: process.env.AGENT_EXECUTE === 'true',
+} as const;
+
+// Protocol configuration
+export const PROTOCOL_CONFIG = {
+  KINTSU_UNLOCK_WAIT_BLOCKS: 100, // Estimated blocks for unlock maturity
+  MIN_REBALANCE_AMOUNT: BigInt(10000000000000000), // 0.01 MON minimum
+  MAX_GAS_PRICE: BigInt(100000000000), // 100 gwei max
+} as const;

@@ -1,195 +1,152 @@
 // src/app/api/agent/route.ts
+import { NextRequest, NextResponse } from 'next/server';
+import { Address } from 'viem';
+import { getAllMetrics } from '@/lib/agent/metrics';
+import { getCurrentPositions } from '@/lib/agent/positions';
+import { shouldRebalance } from '@/lib/agent/decisions';
+import { executeRebalance } from '@/lib/agent/execution';
+import { AGENT_CONFIG } from '@/lib/agent/config';
 
-import { NextResponse } from "next/server";
-import { createWalletClient, http } from "viem";
-import { privateKeyToAccount } from "viem/accounts";
-import {
-  CHAIN,
-  DELEGATION_ENV,
-  ENTRYPOINT_ADDRESS,
-  REBALANCE_THRESHOLD_PCT,
-  AGENT_PRIVATE_KEY,
-  EXECUTE_MODE,
-} from "@/lib/agent/config";
-import { publicClient } from "@/lib/viemClients";
-import {
-  toMetaMaskSmartAccount,
-  Implementation,
-} from "@metamask/delegation-toolkit";
-import { getAllMetrics } from "@/lib/agent/metrics";
-import { getUserPosition } from "@/lib/agent/positions";
-import {
-  determineOptimalProtocol,
-  shouldRebalance,
-} from "@/lib/agent/decisions";
-import { ensureEntryPointPrefund } from "@/lib/agent/entryPoint";
-import {
-  buildRebalanceExecution,
-  encodeRedeemDelegations,
-  estimateGasAndFees,
-  sendUserOperation,
-} from "@/lib/agent/userop";
-import { toJSONSafe } from "@/lib/agent/serialize";
-import type { Address } from "viem";
-import type { Delegation } from "@metamask/delegation-toolkit";
+// In production, retrieve this from secure storage
+const STORED_DELEGATION = process.env.SIGNED_DELEGATION ? 
+  JSON.parse(process.env.SIGNED_DELEGATION) : null;
 
-// Placeholder signed delegation; replace in Phase 3.5
-import { signedDelegation } from "@/lib/signedDelegation";
-
-// BigInt-safe JSON helper
-const json = (v: any, init?: ResponseInit) =>
-  NextResponse.json(toJSONSafe(v), init);
-
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    console.log("🚀 Agent route start - executeMode=", EXECUTE_MODE);
-
-    if (!AGENT_PRIVATE_KEY) {
-      throw new Error("AGENT_PRIVATE_KEY is not set");
-    }
-
-    // 1) Agent EOA + wallet client
-    const agentEOA = privateKeyToAccount(AGENT_PRIVATE_KEY);
-    const walletClient = createWalletClient({
-      account: agentEOA,
-      chain: CHAIN,
-      transport: http(),
-    });
-
-    console.log("👤 Agent EOA:", agentEOA.address);
-
-    // 2) Agent Smart Account
-    const agentSA = await toMetaMaskSmartAccount({
-      client: publicClient,
-      implementation: Implementation.Hybrid,
-      signer: { account: agentEOA },
-      environment: DELEGATION_ENV,
-      deployParams: [agentEOA.address, [], [], []],
-      deploySalt: "0x",
-    });
-
-    console.log("🤖 Agent Smart Account (SA):", agentSA.address);
-
-    // 3) Log both Smart Account and personal wallet sMON balances
-    const personalAddress = "YOUR_WALLET_ADDRESS" as Address;
-    const [saBal, eoaBal] = await Promise.all([
-      getUserPosition(agentSA.address as Address),
-      getUserPosition(personalAddress),
-    ]);
-    console.log("SA position:", saBal);
-    console.log("EOA position:", eoaBal);
-
-    // 4) Fetch metrics + SA position
-    const [metrics, position] = await Promise.all([
-      getAllMetrics(),
-      getUserPosition(agentSA.address as Address),
-    ]);
-
-    console.log("📊 Metrics:", metrics);
-
-    // 5) No position -> early return
-    if (!position) {
-      return json({
-        success: true,
-        message: "No current position in SA; nothing to rebalance",
-        metrics,
-        saPosition: saBal,
-        eoaPosition: eoaBal,
-        agentAddress: agentSA.address,
-        executeMode: EXECUTE_MODE,
-      });
-    }
-
-    console.log("🏷 Current SA position:", position);
-
-    // 6) Decision making
-    const optimal = determineOptimalProtocol(metrics);
-    const decision = shouldRebalance(
-      position.protocol,
-      optimal,
-      metrics,
-      REBALANCE_THRESHOLD_PCT
-    );
-
-    console.log("🎯 Optimal protocol:", optimal);
-    console.log("🔄 Decision result:", decision);
-
-    // 7) Simulation mode guard
-    if (!EXECUTE_MODE) {
-      const { fromProtocol, toProtocol, reason } = decision;
-      const message =
-        fromProtocol === toProtocol
-          ? reason
-          : `Simulation: would rebalance from ${fromProtocol} to ${toProtocol}`;
-      return json({
-        success: true,
-        message,
-        decision,
-        metrics,
-        position,
-        agentAddress: agentSA.address,
-        executeMode: EXECUTE_MODE,
-        simulated: true,
-      });
-    }
-
-    // 8) EntryPoint prefund if configured
-    // if (ENTRYPOINT_ADDRESS) {
-    //   console.log("⛽ Prefunding EntryPoint...");
-    //   await ensureEntryPointPrefund(
-    //     walletClient,
-    //     ENTRYPOINT_ADDRESS,
-    //     agentSA.address as Address,
-    //     { checkOnly: false }
-    //   );
-    // }
-
-    // 9) Build and send UserOperation
-    const minAmountOut = 0n;
-    const execution = buildRebalanceExecution(
-      decision.fromProtocol!,
-      decision.toProtocol!,
-      minAmountOut
-    );
-    const redeemCall = encodeRedeemDelegations(
-      signedDelegation as Delegation,
-      execution
-    );
-    const calls = [redeemCall];
-    console.log("🔧 Execution calls built");
-
-    const { limits, fees } = await estimateGasAndFees(agentSA, calls);
-    console.log("⛽ Gas limits:", limits, "Fees:", fees);
-
-    const { userOpHash, receipt } = await sendUserOperation(
-      agentSA,
-      calls,
-      limits,
-      fees
-    );
-    console.log("✅ UserOpHash:", userOpHash);
-    console.log("📄 TxHash:", receipt.transactionHash);
-
-    return json({
+    // Get current metrics
+    const metrics = await getAllMetrics();
+    
+    // Get current positions
+    const positions = await getCurrentPositions(AGENT_CONFIG.SMART_ACCOUNT_ADDRESS);
+    
+    // Make decision
+    const decision = shouldRebalance(metrics, positions, AGENT_CONFIG.REBALANCE_THRESHOLD_PCT);
+    
+    return NextResponse.json({
       success: true,
-      message: `Rebalanced from ${decision.fromProtocol} to ${decision.toProtocol}`,
+      timestamp: new Date().toISOString(),
+      executeMode: AGENT_CONFIG.EXECUTE_MODE,
+      metrics,
+      positions: {
+        kintsu: {
+          balance: positions.kintsu.balanceFormatted,
+          valueInMON: positions.kintsu.valueInMONFormatted,
+        },
+        magma: {
+          balance: positions.magma.balanceFormatted,
+          valueInMON: positions.magma.valueInMONFormatted,
+        },
+        total: positions.totalValueMONFormatted
+      },
+      decision,
+      smartAccount: AGENT_CONFIG.SMART_ACCOUNT_ADDRESS
+    });
+    
+  } catch (error: any) {
+    return NextResponse.json({
+      success: false,
+      error: error.message,
+      timestamp: new Date().toISOString()
+    }, { status: 500 });
+  }
+}
+
+export async function POST(request: NextRequest) {
+  try {
+    const body = await request.json();
+    
+    // Handle delegation storage
+    if (body.action === 'store_delegation') {
+      // In production, store securely in database
+      console.log('Received signed delegation:', body.signedDelegation);
+      return NextResponse.json({ success: true, message: 'Delegation stored' });
+    }
+    
+    // Handle manual execution trigger
+    if (body.action === 'execute_rebalance') {
+      if (!STORED_DELEGATION) {
+        return NextResponse.json({
+          success: false,
+          error: 'No delegation found. User must authorize agent first.'
+        });
+      }
+      
+      const result = await performRebalance();
+      return NextResponse.json(result);
+    }
+    
+    // Default: Check if rebalance is needed and execute
+    const result = await performRebalance();
+    return NextResponse.json(result);
+    
+  } catch (error: any) {
+    return NextResponse.json({
+      success: false,
+      error: error.message,
+      timestamp: new Date().toISOString()
+    }, { status: 500 });
+  }
+}
+
+async function performRebalance() {
+  try {
+    // 1) Get latest data
+    const metrics = await getAllMetrics();
+    const positions = await getCurrentPositions(AGENT_CONFIG.SMART_ACCOUNT_ADDRESS);
+    const decision = shouldRebalance(metrics, positions, AGENT_CONFIG.REBALANCE_THRESHOLD_PCT);
+    
+    if (!decision.shouldRebalance) {
+      return {
+        success: true,
+        action: 'no_rebalance',
+        reason: decision.reason,
+        metrics,
+        positions: {
+          kintsu: positions.kintsu.balanceFormatted,
+          magma: positions.magma.balanceFormatted,
+          total: positions.totalValueMONFormatted
+        },
+        timestamp: new Date().toISOString()
+      };
+    }
+    
+    // 2) Check if delegation is available
+    if (!STORED_DELEGATION) {
+      return {
+        success: false,
+        action: 'delegation_required',
+        error: 'User must authorize the agent first',
+        decision
+      };
+    }
+    
+    // 3) Execute the rebalance
+    const result = await executeRebalance(
+      decision.fromProtocol,
+      decision.toProtocol,
+      STORED_DELEGATION
+    );
+    
+    return {
+      success: result.success,
+      action: 'rebalance_executed',
+      result,
       decision,
       metrics,
-      position,
-      userOpHash,
-      txHash: receipt.transactionHash,
-      agentAddress: agentSA.address,
-      executeMode: EXECUTE_MODE,
-    });
-  } catch (error: any) {
-    console.error("❌ Agent error:", error);
-    return json(
-      {
-        success: false,
-        error: error.message ?? String(error),
-        executeMode: EXECUTE_MODE,
+      positions: {
+        kintsu: positions.kintsu.balanceFormatted,
+        magma: positions.magma.balanceFormatted,
+        total: positions.totalValueMONFormatted
       },
-      { status: 500 }
-    );
+      timestamp: new Date().toISOString()
+    };
+    
+  } catch (error: any) {
+    return {
+      success: false,
+      action: 'execution_failed',
+      error: error.message,
+      timestamp: new Date().toISOString()
+    };
   }
 }
