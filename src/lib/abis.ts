@@ -5,6 +5,7 @@ export const erc20Abi = parseAbi([
   'function balanceOf(address owner) view returns (uint256)',
   'function approve(address spender, uint256 amount) returns (bool)',
   'function transfer(address to, uint256 amount) returns (bool)',
+  'function allowance(address owner, address spender) view returns (uint256)', // Make sure this is included
 ]);
 
 export const kintsuAbi = parseAbi([
@@ -18,4 +19,9 @@ export const magmaAbi = parseAbi([
   'function depositMon() payable',
   'function depositMon(uint256 referralId) payable',
   'function withdrawMon(uint256 amount)',
+]);
+
+export const permit2Abi = parseAbi([
+  'function allowance(address owner, address token, address spender) view returns (uint160 amount, uint48 expiration, uint48 nonce)',
+  'function approve(address token, address spender, uint160 amount, uint48 expiration)',
 ]);
