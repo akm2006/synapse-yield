@@ -2,12 +2,11 @@
 import type { Address } from 'viem';
 import { encodeFunctionData, maxUint256, parseAbi } from 'viem';
 import { aaPublic } from '@/lib/aaClient';
-import { erc20Abi, permit2Abi } from '@/lib/abis'; // Now erc20Abi includes allowance
+import { erc20Abi, permit2Abi } from '@/lib/abis';
 import { CONTRACTS } from '@/lib/contracts';
 import { getAAClient } from '@/lib/aaClient';
 import { emitLog } from '@/lib/logBus';
 
-// Use enhanced ERC20 ABI that includes allowance function
 const erc20AbiWithAllowance = parseAbi([
   'function balanceOf(address owner) view returns (uint256)',
   'function approve(address spender, uint256 amount) returns (bool)',
@@ -35,8 +34,8 @@ export type EnsureAllowancesResult = {
   requiredCalls: Array<{ to: Address; data: `0x${string}`; value?: bigint }>;
 };
 
-// uint160 max for Permit2 amount  
-const MAX_UINT160 = (1n << 160n) - 1n; // type(uint160).max
+const MAX_UINT160 = (1n << 160n) - 1n;
+const NATIVE_TOKEN = '0x0000000000000000000000000000000000000000' as Address;
 
 export async function ensureTokenAllowancesAA(
   token: Address,
@@ -50,31 +49,53 @@ export async function ensureTokenAllowancesAA(
   const opId = opts?.opId;
   const log = (m: string) => (opId ? emitLog(opId, m) : console.log(m));
 
-  log(`Starting AA allowance checks token=${token} needed=${amountNeeded.toString()}`);
+  if (token.toLowerCase() === NATIVE_TOKEN) {
+    log('Native token detected - skipping allowance checks');
+    return {
+      erc20: {
+        token,
+        spender: PERMIT2,
+        type: 'erc20',
+        exists: true,
+        current: 'N/A',
+        needed: amountNeeded.toString(),
+        needsAction: false,
+        message: 'Native token - no approval needed',
+      },
+      permit2: {
+        token,
+        spender: UNIVERSAL_ROUTER,
+        type: 'permit2',
+        exists: true,
+        current: 'N/A',
+        needed: amountNeeded.toString(),
+        needsAction: false,
+        message: 'Native token - no approval needed',
+      },
+      requiredCalls: [],
+    };
+  }
 
-  // 1) Check ERC20 allowance (smartAccount -> PERMIT2)
+  log(`Starting AA allowance checks token=${token} needed=${amountNeeded}`);
   const currentErc20 = (await aaPublic.readContract({
     address: token,
-    abi: erc20AbiWithAllowance, // Use the enhanced ABI
+    abi: erc20AbiWithAllowance,
     functionName: 'allowance',
     args: [smartAccountAddress, PERMIT2],
   })) as bigint;
 
-  log(`ERC20 allowance (smartAccount -> Permit2) current=${currentErc20.toString()}`);
-
-  // 2) Check Permit2 allowance (smartAccount, token, spender=Universal Router)
-  let pAmount = 0n;
-  let pExpire = 0;
+  log(`ERC20 allowance current=${currentErc20}`);
+  let pAmount = 0n, pExpire = 0;
   try {
     const res = (await aaPublic.readContract({
       address: PERMIT2,
       abi: permit2Abi,
       functionName: 'allowance',
       args: [smartAccountAddress, token, UNIVERSAL_ROUTER],
-    })) as [bigint, number, number]; // amount(uint160), expiration(uint48), nonce(uint48)
+    })) as [bigint, number, number];
     pAmount = res[0];
     pExpire = res[1];
-    log(`Permit2 allowance current=${pAmount.toString()} exp=${pExpire}`);
+    log(`Permit2 allowance current=${pAmount} exp=${pExpire}`);
   } catch {
     log('Permit2 allowance read failed; assuming zero');
   }
@@ -92,8 +113,8 @@ export async function ensureTokenAllowancesAA(
     needed: amountNeeded.toString(),
     needsAction: !erc20Exists,
     message: erc20Exists
-      ? 'ERC20 approval to Permit2 exists and is sufficient.'
-      : 'ERC20 approval to Permit2 missing or insufficient; will include in batch.',
+      ? 'ERC20 approval to Permit2 exists.'
+      : 'ERC20 approval missing; will include.',
   };
 
   const permit2: ApprovalDetail = {
@@ -107,30 +128,27 @@ export async function ensureTokenAllowancesAA(
     isExpired: permit2Expired || undefined,
     needsAction: !permit2Exists || permit2Expired,
     message: permit2Exists
-      ? 'Permit2 approval to Universal Router exists and is valid.'
+      ? 'Permit2 approval exists.'
       : permit2Expired
-      ? 'Permit2 approval expired; will include in batch.'
-      : 'Permit2 approval missing or insufficient; will include in batch.',
+      ? 'Permit2 expired; will include.'
+      : 'Permit2 missing; will include.',
   };
 
-  // 3) Build required calls for batch execution
   const requiredCalls: Array<{ to: Address; data: `0x${string}`; value?: bigint }> = [];
 
-  // Add ERC20 approval call if needed
   if (!erc20Exists) {
     const erc20CallData = encodeFunctionData({
-      abi: erc20AbiWithAllowance, // Use the enhanced ABI
+      abi: erc20AbiWithAllowance,
       functionName: 'approve',
       args: [PERMIT2, maxUint256],
     });
     requiredCalls.push({ to: token, data: erc20CallData });
     erc20.callData = erc20CallData;
-    log('Will include ERC20 approve(token -> Permit2) in batch');
+    log('Including ERC20 approve in batch');
   }
 
-  // Add Permit2 approval call if needed/expired
   if (!permit2Exists || permit2Expired) {
-    const expiration: number = now + 365 * 24 * 60 * 60; // 1 year
+    const expiration = now + 365 * 24 * 60 * 60;
     const permit2CallData = encodeFunctionData({
       abi: permit2Abi,
       functionName: 'approve',
@@ -140,9 +158,9 @@ export async function ensureTokenAllowancesAA(
     permit2.callData = permit2CallData;
     permit2.expiration = expiration;
     permit2.isExpired = false;
-    log(`Will include Permit2 approve(token -> Router) in batch exp=${expiration}`);
+    log(`Including Permit2 approve in batch exp=${expiration}`);
   }
 
-  log(`AA allowance check complete. Required calls: ${requiredCalls.length}`);
+  log(`Allowance check complete. Calls: ${requiredCalls.length}`);
   return { erc20, permit2, requiredCalls };
 }

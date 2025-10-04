@@ -1,29 +1,30 @@
 // src/app/page.tsx
 'use client';
-
-import { useEffect, useRef, useState } from 'react';
-import { CONTRACTS } from '@/lib/contracts';
-import { erc20Abi, permit2Abi } from '@/lib/abis';
-import { browserPublicClient } from '@/lib/smartAccountClient';
-import type { Address } from 'viem';
-import { formatUnits, parseUnits, encodeFunctionData, maxUint256 } from 'viem';
+import { useState } from 'react';
+import { parseUnits } from 'viem';
+import { useSmartAccount } from '@/hooks/useSmartAccount';
+import { useBalances } from '@/hooks/useBalances';
+import { useSSEStream } from '@/hooks/useSSEStream';
+import { useTokenOperations } from '@/hooks/useTokenOperations';
+import { useTransactionLogger } from '@/components/TransactionLogger';
+import BalanceDisplay from '@/components/BalanceDisplay';
+import SwapInterface from '@/components/SwapInterface';
+import TransactionLogger from '@/components/TransactionLogger';
 import SmartAccountManager from './components/SmartAccountManager';
 import TokenTransfer from './components/TokenTransfer';
-import { getAAClient, settleUserOperation } from '@/lib/aaClient';
-
-const PERMIT2 = CONTRACTS.PERMIT2 as Address;
-const UNIVERSAL_ROUTER = CONTRACTS.PANCAKESWAP as Address;
-
+import { CONTRACTS } from '@/lib/contracts';
+import type { Address } from 'viem';
 export default function Home() {
-  const [balances, setBalances] = useState({ native: '0', kintsu: '0', magma: '0' });
-  const [loading, setLoading] = useState(false);
-  const [logs, setLogs] = useState<string[]>([]);
-  const [smartAccountAddress, setSmartAccountAddress] = useState<Address | null>(null);
-  const [fundAmount, setFundAmount] = useState('');
-  const unwatchRef = useRef<null | (() => void)>(null);
-  const lastBlockRef = useRef(0n);
+  // Use shared hooks
+  const { smartAccountAddress, setSmartAccountReady } = useSmartAccount();
+  const { balances, isLoading: balancesLoading, fetchBalances } = useBalances(smartAccountAddress);
+  const { generateOpId, openStream } = useSSEStream();
+const { stakeMagma, unstakeMagma, stakeKintsu, unstakeKintsu, requestUnlock, redeemUnlock, directSwap } = useTokenOperations();
+  const { logs, addLog, clearLogs } = useTransactionLogger();
 
-  // Manual amounts for actions
+  // Local state for manual operations
+  const [loading, setLoading] = useState(false);
+  const [fundAmount, setFundAmount] = useState('');
   const [amt, setAmt] = useState({
     magmaStake: '0.01',
     magmaUnstake: '0.01',
@@ -31,374 +32,255 @@ export default function Home() {
     kintsuUnstake: '0.01',
   });
 
-  function log(msg: string) {
-    setLogs((prev) => [...prev, msg]);
-    console.log(msg);
-  }
+  // Manual staking operations (for backward compatibility with existing UI)
+  const handleStakeMagma = async (amount: string) => {
+    if (!smartAccountAddress) return addLog('[ERROR] Smart Account not ready');
 
-  async function postJSON(path: string, body: any) {
-    const res = await fetch(path, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      cache: 'no-store',
-      next: { revalidate: 0 },
-      body: JSON.stringify(body),
-    });
-    const contentType = res.headers.get('content-type') || '';
-    if (contentType.includes('application/json')) {
-      return res.json();
-    }
-    const text = await res.text();
-    return { ok: false, error: `HTTP ${res.status}: ${text.slice(0, 300)}...` };
-  }
+    const opId = generateOpId();
+    openStream(opId, addLog);
 
-  // Generate operation ID
-  function generateOpId() {
-    return (crypto as any)?.randomUUID?.() ??
-      Math.random().toString(36).slice(2) + Date.now().toString(36);
-  }
-
-  // SSE stream helper
-  function openSSEStream(opId: string) {
-    const es = new EventSource(`/api/logs/stream?id=${opId}`);
-    es.addEventListener('log', (ev: MessageEvent) => {
-      try {
-        const { msg } = JSON.parse(ev.data);
-        log(`[STREAM] ${msg}`);
-      } catch {
-        log('[STREAM] <malformed log event>');
-      }
-    });
-    es.addEventListener('done', () => {
-      log('[STREAM] stream closed');
-      es.close();
-    });
-    es.onerror = () => {
-      log('[STREAM] stream error');
-      es.close();
-    };
-  }
-
-  // Fetch balances (silent=true suppresses logs/loading to avoid UI jitter)
-  async function fetchBalances(silent: boolean = false) {
-    if (!smartAccountAddress) {
-      setBalances({ native: '0', kintsu: '0', magma: '0' });
-      return;
-    }
-    if (loading && !silent) return;
-    if (!silent) setLoading(true);
-    
     try {
-      if (!silent) log(`[INFO] Fetching balances for Smart Account ${smartAccountAddress}`);
-      
-      // Multicall for ERC-20 balances
-      let sMonRaw = 0n;
-      let gMonRaw = 0n;
-      try {
-        const tokenReads = await browserPublicClient.multicall({
-          contracts: [
-            {
-              address: CONTRACTS.KINTSU as Address,
-              abi: erc20Abi,
-              functionName: 'balanceOf',
-              args: [smartAccountAddress],
-            },
-            {
-              address: CONTRACTS.GMON as Address,
-              abi: erc20Abi,
-              functionName: 'balanceOf',
-              args: [smartAccountAddress],
-            },
-          ],
-        });
-        sMonRaw = tokenReads[0]?.status === 'success' ? (tokenReads[0].result as bigint) : 0n;
-        gMonRaw = tokenReads[1]?.status === 'success' ? (tokenReads[1].result as bigint) : 0n;
-      } catch {
-        // Fallback single reads
-        sMonRaw = (await browserPublicClient.readContract({
-          address: CONTRACTS.KINTSU as Address,
-          abi: erc20Abi,
-          functionName: 'balanceOf',
-          args: [smartAccountAddress],
-        })) as bigint;
-        gMonRaw = (await browserPublicClient.readContract({
-          address: CONTRACTS.GMON as Address,
-          abi: erc20Abi,
-          functionName: 'balanceOf',
-          args: [smartAccountAddress],
-        })) as bigint;
-      }
+      addLog(`[ACTION] Stake Magma (Smart Account): ${amount}`);
+      const result = await stakeMagma(amount, opId);
 
-      // Native MON
-      const nativeRaw = await browserPublicClient.getBalance({ address: smartAccountAddress });
+      if (!result.ok) return addLog(`[ERROR] stakeMagma: ${result.error}`);
+      if (result.userOpHash) addLog(`[UO] userOpHash: ${result.userOpHash}`);
+      if (result.transactionHash) addLog(`[TX] transactionHash: ${result.transactionHash}`);
+      if (result.blockNumber) addLog(`[TX] included at block: ${result.blockNumber}`);
 
-      const next = {
-        native: formatUnits(nativeRaw, 18),
-        kintsu: formatUnits(sMonRaw, 18),
-        magma: formatUnits(gMonRaw, 18),
-      };
-
-      const changed =
-        next.native !== balances.native ||
-        next.kintsu !== balances.kintsu ||
-        next.magma !== balances.magma;
-
-      if (changed || !silent) {
-        setBalances(next);
-        if (!silent) {
-          log(`[INFO] Balances: MON=${next.native} sMON=${next.kintsu} gMON=${next.magma}`);
-        }
-      }
+      await fetchBalances(false);
     } catch (err: any) {
-      if (!silent) log(`[ERROR] fetchBalances error: ${err.message || err}`);
-    } finally {
-      if (!silent) setLoading(false);
+      addLog(`[ERROR] Stake Magma error: ${err.message || err}`);
     }
-  }
+  };
 
-  // Check sMON approvals
-  async function checkSmonApprovals() {
-    if (!smartAccountAddress) return log('[ERROR] Smart Account not ready');
-    
+  const handleUnstakeMagma = async (amount: string) => {
+    if (!smartAccountAddress) return addLog('[ERROR] Smart Account not ready');
+
+    const opId = generateOpId();
+    openStream(opId, addLog);
+
     try {
-      const token = CONTRACTS.KINTSU as Address;
-      const needed = BigInt(Math.floor(+amt.kintsuUnstake * 1e18));
+      addLog(`[ACTION] Unstake Magma (Smart Account): ${amount}`);
+      const result = await unstakeMagma(amount, opId);
 
-      log(`[CHECK] Checking sMON approvals for ${amt.kintsuUnstake} sMON`);
+      if (!result.ok) return addLog(`[ERROR] unstakeMagma: ${result.error}`);
+      if (result.userOpHash) addLog(`[UO] userOpHash: ${result.userOpHash}`);
+      if (result.transactionHash) addLog(`[TX] transactionHash: ${result.transactionHash}`);
+      if (result.blockNumber) addLog(`[TX] included at block: ${result.blockNumber}`);
 
-      const erc20Allowance = (await browserPublicClient.readContract({
-        address: token,
-        abi: erc20Abi,
-        functionName: 'allowance',
-        args: [smartAccountAddress, PERMIT2],
-      })) as bigint;
-
-      let pAmount = 0n;
-      let pExp = 0;
-      try {
-        const res = (await browserPublicClient.readContract({
-          address: PERMIT2,
-          abi: permit2Abi,
-          functionName: 'allowance',
-          args: [smartAccountAddress, token, UNIVERSAL_ROUTER],
-        })) as [bigint, number, number];
-        pAmount = res[0];
-        pExp = res[1];
-      } catch {
-        // treat as zero
-      }
-
-      const now = Math.floor(Date.now() / 1000);
-      const okErc20 = erc20Allowance >= needed;
-      const okPermit2 = pAmount >= needed && (pExp === 0 || pExp > now);
-
-      log(`[CHECK] ERC20 allowance to Permit2: current=${erc20Allowance.toString()} needed=${needed.toString()} ok=${okErc20}`);
-      log(`[CHECK] Permit2 allowance to Router: current=${pAmount.toString()} exp=${pExp} ok=${okPermit2}`);
-    } catch (e: any) {
-      log(`[ERROR] checkSmonApprovals: ${e?.message || e}`);
+      await fetchBalances(false);
+    } catch (err: any) {
+      addLog(`[ERROR] Unstake Magma error: ${err.message || err}`);
     }
-  }
+  };
 
-  // Approve sMON (batched AA transaction)
-  async function approveSmon() {
-    if (!smartAccountAddress) return log('[ERROR] Smart Account not ready');
-    
+  const handleStakeKintsu = async (amount: string) => {
+    if (!smartAccountAddress) return addLog('[ERROR] Smart Account not ready');
+
+    const opId = generateOpId();
+    openStream(opId, addLog);
+
     try {
-      log('[ACTION] Approving sMON (ERC20→Permit2 + Permit2→Router) via AA batch');
+      addLog(`[ACTION] Stake Kintsu (Smart Account): ${amount}`);
+      const result = await stakeKintsu(amount, smartAccountAddress, opId);
 
-      const token = CONTRACTS.KINTSU as Address;
-      const MAX_UINT160 = (1n << 160n) - 1n;
-      const expiration: number = Math.floor(Date.now() / 1000) + 365 * 24 * 60 * 60;
+      if (!result.ok) return addLog(`[ERROR] stakeKintsu: ${result.error}`);
+      if (result.userOpHash) addLog(`[UO] userOpHash: ${result.userOpHash}`);
+      if (result.transactionHash) addLog(`[TX] transactionHash: ${result.transactionHash}`);
+      if (result.blockNumber) addLog(`[TX] included at block: ${result.blockNumber}`);
 
-      // Build both approval calls
-      const erc20ApprovalData = encodeFunctionData({
-        abi: erc20Abi,
-        functionName: 'approve',
-        args: [PERMIT2, maxUint256],
-      });
-
-      const permit2ApprovalData = encodeFunctionData({
-        abi: permit2Abi,
-        functionName: 'approve',
-        args: [token, UNIVERSAL_ROUTER, MAX_UINT160, expiration],
-      });
-
-      const { client } = await getAAClient();
-      const userOpHash = await client.sendUserOperation({
-        calls: [
-          { to: token, data: erc20ApprovalData },
-          { to: PERMIT2, data: permit2ApprovalData },
-        ],
-      });
-
-      log(`[UO] Approval batch submitted: ${userOpHash}`);
-      const settled = await settleUserOperation(userOpHash);
-      log(`[TX] Approval batch confirmed: ${settled.transactionHash} at block ${settled.blockNumber}`);
-    } catch (e: any) {
-      log(`[ERROR] approveSmon: ${e?.message || e}`);
+      await fetchBalances(false);
+    } catch (err: any) {
+      addLog(`[ERROR] Stake Kintsu error: ${err.message || err}`);
     }
-  }
+  };
 
-  // Smart Account actions with SSE logging
-  async function stakeMagma(amount: string) {
-    if (!smartAccountAddress) return log('[ERROR] Smart Account not ready');
-    
-    const opId = generateOpId();
-    openSSEStream(opId);
-    
-    log(`[ACTION] Stake Magma (Smart Account): ${amount}`);
-    const json = await postJSON('/api/tx/magma/stake', { amount, opId });
-    
-    if (!json.ok) return log(`[ERROR] stakeMagma: ${json.error}`);
-    if (json.userOpHash) log(`[UO] userOpHash: ${json.userOpHash}`);
-    if (json.transactionHash) log(`[TX] transactionHash: ${json.transactionHash}`);
-    if (json.blockNumber) log(`[TX] included at block: ${json.blockNumber}`);
-    
-    await fetchBalances(false);
-  }
+  const handleUnstakeKintsu = async (amount: string) => {
+    if (!smartAccountAddress) return addLog('[ERROR] Smart Account not ready');
 
-  async function unstakeMagma(amount: string) {
-    if (!smartAccountAddress) return log('[ERROR] Smart Account not ready');
-    
-    const opId = generateOpId();
-    openSSEStream(opId);
-    
-    log(`[ACTION] Unstake Magma (Smart Account): ${amount}`);
-    const json = await postJSON('/api/tx/magma/withdraw', { amount, opId });
-    
-    if (!json.ok) return log(`[ERROR] unstakeMagma: ${json.error}`);
-    if (json.userOpHash) log(`[UO] userOpHash: ${json.userOpHash}`);
-    if (json.transactionHash) log(`[TX] transactionHash: ${json.transactionHash}`);
-    if (json.blockNumber) log(`[TX] included at block: ${json.blockNumber}`);
-    
-    await fetchBalances(false);
-  }
-
-  async function stakeKintsu(amount: string) {
-    if (!smartAccountAddress) return log('[ERROR] Smart Account not ready');
-    
-    const opId = generateOpId();
-    openSSEStream(opId);
-    
-    log(`[ACTION] Stake Kintsu (Smart Account): ${amount}`);
-    const json = await postJSON('/api/tx/kintsu/deposit', {
-      amount,
-      receiver: smartAccountAddress,
-      opId,
-    });
-    
-    if (!json.ok) return log(`[ERROR] stakeKintsu: ${json.error}`);
-    if (json.userOpHash) log(`[UO] userOpHash: ${json.userOpHash}`);
-    if (json.transactionHash) log(`[TX] transactionHash: ${json.transactionHash}`);
-    if (json.blockNumber) log(`[TX] included at block: ${json.blockNumber}`);
-    
-    await fetchBalances(false);
-  }
-
-  async function unstakeKintsu(amount: string) {
-    if (!smartAccountAddress) return log('[ERROR] Smart Account not ready');
-    
     try {
       const amountInWei = BigInt(Math.floor(+amount * 1e18)).toString();
       const minOutWei = (BigInt(amountInWei) * 99n) / 100n + '';
       const fee = 2500;
-
       const opId = generateOpId();
-      openSSEStream(opId);
+      openStream(opId, addLog);
 
-      log(`[ACTION] Kintsu Instant Unstake via Pancake (Smart Account): ${amount}`);
-      const json = await postJSON('/api/tx/kintsu/unstake', {
-        amountIn: amountInWei,
-        minOut: minOutWei,
+      addLog(`[ACTION] Kintsu Instant Unstake via Pancake (Smart Account): ${amount}`);
+      const result = await unstakeKintsu(
+        amountInWei,
+        minOutWei,
         fee,
-        recipient: smartAccountAddress,
-        unwrap: true,
-        deadlineSec: 1800,
-        opId,
+        smartAccountAddress,
+        true,
+        1800,
+        opId
+      );
+
+      if (!result.ok) return addLog(`[ERROR] Unstake Kintsu: ${result.error}`);
+      if (result.userOpHash) addLog(`[UO] userOpHash: ${result.userOpHash}`);
+      if (result.transactionHash) addLog(`[TX] transactionHash: ${result.transactionHash}`);
+      if (result.blockNumber) addLog(`[TX] included at block: ${result.blockNumber}`);
+      if (result.batchedCalls) addLog(`[INFO] Batched ${result.batchedCalls} calls in one UserOperation`);
+
+      await fetchBalances(false);
+    } catch (err: any) {
+      addLog(`[ERROR] Unstake Kintsu flow: ${err.message || err}`);
+    }
+  };
+
+  const handleRequestUnlock = async (amount: string) => {
+    if (!smartAccountAddress) return addLog('[ERROR] Smart Account not ready');
+
+    const opId = generateOpId();
+    openStream(opId, addLog);
+
+    try {
+      addLog(`[ACTION] Request Unlock Kintsu: ${amount}`);
+      const result = await requestUnlock(amount, opId);
+
+      if (!result.ok) return addLog(`[ERROR] requestUnlock: ${result.error}`);
+      if (result.userOpHash) addLog(`[UO] userOpHash: ${result.userOpHash}`);
+      if (result.transactionHash) addLog(`[TX] transactionHash: ${result.transactionHash}`);
+      if (result.blockNumber) addLog(`[TX] included at block: ${result.blockNumber}`);
+
+      await fetchBalances(false);
+    } catch (err: any) {
+      addLog(`[ERROR] Request Unlock error: ${err.message || err}`);
+    }
+  };
+
+  const handleRedeemUnlock = async (unlockIndex: string) => {
+    if (!smartAccountAddress) return addLog('[ERROR] Smart Account not ready');
+
+    const opId = generateOpId();
+    openStream(opId, addLog);
+
+    try {
+      addLog(`[ACTION] Redeem Unlock Index: ${unlockIndex}`);
+      const result = await redeemUnlock(unlockIndex, smartAccountAddress, opId);
+
+      if (!result.ok) return addLog(`[ERROR] redeem: ${result.error}`);
+      if (result.userOpHash) addLog(`[UO] userOpHash: ${result.userOpHash}`);
+      if (result.transactionHash) addLog(`[TX] transactionHash: ${result.transactionHash}`);
+      if (result.blockNumber) addLog(`[TX] included at block: ${result.blockNumber}`);
+
+      await fetchBalances(false);
+    } catch (err: any) {
+      addLog(`[ERROR] Redeem Unlock error: ${err.message || err}`);
+    }
+  };
+
+  // Replace the rebalance function in src/app/page.tsx with this optimized version:
+const rebalance = async () => {
+  if (!smartAccountAddress) return addLog('[ERROR] Smart Account not ready');
+
+  setLoading(true);
+  addLog('[ACTION] Starting optimized rebalance');
+
+  try {
+    const opId = generateOpId();
+    openStream(opId, addLog);
+
+    if (parseFloat(balances.kintsu) > 0.0001) {
+      // sMON → gMON: Direct swap via PancakeSwap (single transaction)
+      addLog('[INFO] Rebalancing from Kintsu (sMON) → Magma (gMON) via direct swap');
+      
+      const amountInWei = BigInt(Math.floor(parseFloat(balances.kintsu) * 1e18)).toString();
+      const minOutWei = (BigInt(amountInWei) * 95n / 100n).toString(); // 5% slippage
+      
+      const result = await directSwap(
+        CONTRACTS.KINTSU as Address, // sMON
+        CONTRACTS.GMON as Address,   // gMON
+        amountInWei,
+        minOutWei,
+        500, // 0.05% fee for stablecoin-like pairs
+        smartAccountAddress,
+        1800,
+        opId
+      );
+
+      if (!result.ok) throw new Error(result.error);
+      if (result.userOpHash) addLog(`[UO] userOpHash: ${result.userOpHash}`);
+      if (result.transactionHash) addLog(`[TX] transactionHash: ${result.transactionHash}`);
+      if (result.blockNumber) addLog(`[TX] included at block: ${result.blockNumber}`);
+      addLog('[SUCCESS] Direct swap completed in 1 transaction!');
+      
+    } else if (parseFloat(balances.magma) > 0.0001) {
+      // gMON → sMON: Direct swap via PancakeSwap (single transaction)
+      addLog('[INFO] Rebalancing from Magma (gMON) → Kintsu (sMON) via direct swap');
+      
+      const amountInWei = BigInt(Math.floor(parseFloat(balances.magma) * 1e18)).toString();
+      const minOutWei = (BigInt(amountInWei) * 95n / 100n).toString(); // 5% slippage
+      
+      const result = await directSwap(
+        CONTRACTS.GMON as Address,   // gMON
+        CONTRACTS.KINTSU as Address, // sMON
+        amountInWei,
+        minOutWei,
+        500, // 0.05% fee for stablecoin-like pairs
+        smartAccountAddress,
+        1800,
+        opId
+      );
+
+      if (!result.ok) throw new Error(result.error);
+      if (result.userOpHash) addLog(`[UO] userOpHash: ${result.userOpHash}`);
+      if (result.transactionHash) addLog(`[TX] transactionHash: ${result.transactionHash}`);
+      if (result.blockNumber) addLog(`[TX] included at block: ${result.blockNumber}`);
+      addLog('[SUCCESS] Direct swap completed in 1 transaction!');
+      
+    } else {
+      addLog('[INFO] No funds to rebalance');
+    }
+  } catch (err: any) {
+    addLog(`[ERROR] Rebalance error: ${err.message || err}`);
+  } finally {
+    await fetchBalances(false);
+    setLoading(false);
+  }
+};
+
+
+  // Fund Smart Account functionality
+  const fundSmartAccount = async () => {
+    if (!smartAccountAddress) return addLog('[ERROR] Smart Account not ready');
+
+    try {
+      const eth = (window as any).ethereum;
+      if (!eth) return addLog('[ERROR] No wallet provider found');
+
+      await ensureMonadChain();
+      const [from] = await eth.request({ method: 'eth_requestAccounts' });
+      if (!from) return addLog('[ERROR] No EOA account connected');
+
+      const valueHex = parseUnits(fundAmount || '0', 18).toString(16);
+      if (valueHex === '0') return addLog('[ERROR] Enter a positive amount');
+
+      addLog(`[ACTION] Fund Smart Account: ${fundAmount} MON from ${from}`);
+      const txHash = await eth.request({
+        method: 'eth_sendTransaction',
+        params: [{
+          from,
+          to: smartAccountAddress,
+          value: '0x' + valueHex,
+        }],
       });
 
-      if (!json.ok) return log(`[ERROR] Unstake Kintsu: ${json.error}`);
-      if (json.userOpHash) log(`[UO] userOpHash: ${json.userOpHash}`);
-      if (json.transactionHash) log(`[TX] transactionHash: ${json.transactionHash}`);
-      if (json.blockNumber) log(`[TX] included at block: ${json.blockNumber}`);
-      if (json.batchedCalls) log(`[INFO] Batched ${json.batchedCalls} calls in one UserOperation`);
-      
+      addLog(`[TX] fund transactionHash: ${txHash}`);
+      await new Promise(r => setTimeout(r, 1200));
       await fetchBalances(false);
     } catch (err: any) {
-      log(`[ERROR] Unstake Kintsu flow: ${err.message || err}`);
+      addLog(`[ERROR] Fund Smart Account: ${err?.message || err}`);
     }
-  }
-
-  async function requestUnlock(amount: string) {
-    if (!smartAccountAddress) return log('[ERROR] Smart Account not ready');
-    
-    const opId = generateOpId();
-    openSSEStream(opId);
-    
-    log(`[ACTION] Request Unlock Kintsu: ${amount}`);
-    const json = await postJSON('/api/tx/kintsu/requestUnlock', { amount, opId });
-    
-    if (!json.ok) return log(`[ERROR] requestUnlock: ${json.error}`);
-    if (json.userOpHash) log(`[UO] userOpHash: ${json.userOpHash}`);
-    if (json.transactionHash) log(`[TX] transactionHash: ${json.transactionHash}`);
-    if (json.blockNumber) log(`[TX] included at block: ${json.blockNumber}`);
-    
-    await fetchBalances(false);
-  }
-
-  async function redeemUnlock(unlockIndex: string) {
-    if (!smartAccountAddress) return log('[ERROR] Smart Account not ready');
-    
-    const opId = generateOpId();
-    openSSEStream(opId);
-    
-    log(`[ACTION] Redeem Unlock Index: ${unlockIndex}`);
-    const json = await postJSON('/api/tx/kintsu/redeem', { 
-      unlockIndex, 
-      receiver: smartAccountAddress,
-      opId 
-    });
-    
-    if (!json.ok) return log(`[ERROR] redeem: ${json.error}`);
-    if (json.userOpHash) log(`[UO] userOpHash: ${json.userOpHash}`);
-    if (json.transactionHash) log(`[TX] transactionHash: ${json.transactionHash}`);
-    if (json.blockNumber) log(`[TX] included at block: ${json.blockNumber}`);
-    
-    await fetchBalances(false);
-  }
-
-  async function rebalance() {
-    if (!smartAccountAddress) return log('[ERROR] Smart Account not ready');
-    
-    setLoading(true);
-    log('[ACTION] Starting rebalance');
-    
-    try {
-      if (parseFloat(balances.kintsu) > 0.0001) {
-        log('[INFO] Rebalancing from Kintsu → Magma');
-        await unstakeKintsu(balances.kintsu);
-        await stakeMagma(balances.kintsu);
-      } else if (parseFloat(balances.magma) > 0.0001) {
-        log('[INFO] Rebalancing from Magma → Kintsu');
-        await unstakeMagma(balances.magma);
-        await stakeKintsu(balances.magma);
-      } else {
-        log('[INFO] No funds to rebalance');
-      }
-    } catch (err: any) {
-      log(`[ERROR] Rebalance error: ${err.message || err}`);
-    } finally {
-      await fetchBalances(false);
-      setLoading(false);
-    }
-  }
+  };
 
   // Ensure Monad Chain
-  async function ensureMonadChain() {
+  const ensureMonadChain = async () => {
     const eth = (window as any).ethereum;
     const monadHex = '0x279f'; // 10143
     const chainId = await eth.request({ method: 'eth_chainId' });
-    
+
     if (chainId !== monadHex) {
       try {
         await eth.request({
@@ -418,281 +300,227 @@ export default function Home() {
         });
       }
     }
-  }
-
-  // Fund Smart Account via connected wallet
-  async function fundSmartAccount() {
-    if (!smartAccountAddress) return log('[ERROR] Smart Account not ready');
-    
-    try {
-      const eth = (window as any).ethereum;
-      if (!eth) return log('[ERROR] No wallet provider found');
-      
-      await ensureMonadChain();
-      const [from] = await eth.request({ method: 'eth_requestAccounts' });
-      if (!from) return log('[ERROR] No EOA account connected');
-      
-      const valueHex = parseUnits(fundAmount || '0', 18).toString(16);
-      if (valueHex === '0') return log('[ERROR] Enter a positive amount');
-      
-      log(`[ACTION] Fund Smart Account: ${fundAmount} MON from ${from}`);
-      const txHash = await eth.request({
-        method: 'eth_sendTransaction',
-        params: [{
-          from,
-          to: smartAccountAddress,
-          value: '0x' + valueHex,
-        }],
-      });
-      
-      log(`[TX] fund transactionHash: ${txHash}`);
-      await new Promise(r => setTimeout(r, 1200));
-      await fetchBalances(false);
-    } catch (err: any) {
-      log(`[ERROR] Fund Smart Account: ${err?.message || err}`);
-    }
-  }
-
-  // Initialize watcher once smart account is ready
-  useEffect(() => {
-    if (!smartAccountAddress) return;
-    
-    // First fetch (logged)
-    fetchBalances(false);
-    
-    try {
-      const unwatch = browserPublicClient.watchBlockNumber({
-        poll: true,
-        pollingInterval: 3000,
-        onBlockNumber: async (bn) => {
-          if (bn !== lastBlockRef.current) {
-            lastBlockRef.current = bn;
-            await fetchBalances(true); // silent refresh
-          }
-        },
-        onError: (e) => log(`[WARN] watchBlockNumber error: ${e?.message || e}`),
-      });
-      unwatchRef.current = unwatch;
-    } catch (e: any) {
-      log('[WARN] watchBlockNumber unsupported');
-    }
-
-    return () => {
-      if (unwatchRef.current) unwatchRef.current();
-    };
-  }, [smartAccountAddress]);
+  };
 
   return (
-    <main className="p-8 max-w-4xl mx-auto">
-      <h1 className="text-3xl font-bold mb-6">Phase 2: Smart Account Dashboard</h1>
+    <div className="min-h-screen bg-gray-900 text-white p-8">
+      <div className="max-w-7xl mx-auto">
+        <h1 className="text-3xl font-bold mb-8">Phase 2: Smart Account Dashboard</h1>
 
-      <SmartAccountManager
-        onSmartAccountReady={setSmartAccountAddress}
-        onLog={log}
-      />
+        {/* Smart Account Setup */}
+        <SmartAccountManager
+          onSmartAccountReady={setSmartAccountReady}
+          onLog={addLog}
+        />
 
-      {smartAccountAddress && (
-        <>
-          <section className="mb-6">
-            <h2 className="text-xl font-semibold mb-3">Smart Account Balances:</h2>
-            {loading ? (
-              <p>Loading balances…</p>
-            ) : (
-              <ul className="space-y-1 text-lg">
-                <li>MON: <b>{balances.native}</b></li>
-                <li>sMON: <b>{balances.kintsu}</b></li>
-                <li>gMON: <b>{balances.magma}</b></li>
-              </ul>
-            )}
-            <button
-              className="mt-2 px-3 py-2 bg-gray-700 text-white rounded"
-              onClick={() => fetchBalances(false)}
-              disabled={loading}
-            >
-              {loading ? 'Refreshing…' : 'Refresh Balances'}
-            </button>
-          </section>
-
-          <TokenTransfer
-            smartAccountAddress={smartAccountAddress}
-            balances={balances}
-            onLog={log}
-            disabled={loading}
-          />
-
-          {/* Fund Smart Account */}
-          <section className="mb-6 p-4 border rounded">
-            <h2 className="text-xl font-semibold mb-2">Fund Smart Account</h2>
-            <div className="flex gap-2">
-              <input
-                type="number"
-                min="0"
-                step="0.001"
-                value={fundAmount}
-                onChange={(e) => setFundAmount(e.target.value)}
-                placeholder="Amount MON"
-                className="flex-1 p-2 border rounded"
+        {smartAccountAddress && (
+          <div className="grid grid-cols-1 xl:grid-cols-3 gap-8 mt-8">
+            {/* Left Column - Balances and Fund */}
+            <div className="space-y-6">
+              {/* Balance Display */}
+              <BalanceDisplay 
+                smartAccountAddress={smartAccountAddress} 
+                balances={balances}
+                loading={loading || balancesLoading} 
               />
-              <button
-                className="px-4 py-2 bg-blue-600 text-white rounded"
-                onClick={fundSmartAccount}
+
+              {/* Fund Smart Account */}
+              <div className="bg-gray-800 p-6 rounded-lg">
+                <h3 className="text-lg font-semibold mb-4">Fund Smart Account</h3>
+                <div className="flex gap-4">
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.001"
+                    value={fundAmount}
+                    onChange={(e) => setFundAmount(e.target.value)}
+                    placeholder="Amount MON"
+                    className="flex-1 p-2 bg-gray-700 border border-gray-600 rounded text-white"
+                  />
+                  <button
+                    onClick={fundSmartAccount}
+                    disabled={loading}
+                    className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 px-6 py-2 rounded font-semibold"
+                  >
+                    Fund
+                  </button>
+                </div>
+                <p className="text-sm text-gray-400 mt-2">
+                  This will prompt the connected wallet to send MON to the smart account address.
+                </p>
+              </div>
+
+              {/* Token Transfer */}
+              <TokenTransfer
+                smartAccountAddress={smartAccountAddress}
+                balances={{
+                  native: balances.native,
+                  kintsu: balances.kintsu,
+                  magma: balances.magma,
+                }}
+                onLog={addLog}
                 disabled={loading}
-              >
-                Fund via EOA
-              </button>
-            </div>
-            <p className="text-sm text-gray-600 mt-1">
-              This will prompt the connected wallet to send MON to the smart account address.
-            </p>
-          </section>
-
-          {/* Staking Actions */}
-          <section className="mb-6 space-y-3">
-            <h2 className="text-xl font-semibold mb-2">Staking Actions:</h2>
-
-            <div className="space-y-2">
-              <label className="block text-sm">Stake MON → gMON (amount)</label>
-              <input
-                className="w-full px-3 py-2 border rounded bg-gray-800 text-white"
-                value={amt.magmaStake}
-                onChange={(e) => setAmt((s) => ({ ...s, magmaStake: e.target.value }))}
               />
-              <button
-                className="w-full px-4 py-3 bg-blue-600 text-white rounded shadow"
-                onClick={() => stakeMagma(amt.magmaStake)}
-                disabled={loading}
-              >
-                Stake Magma
-              </button>
             </div>
 
-            <div className="space-y-2">
-              <label className="block text-sm">Unstake gMON → MON (amount)</label>
-              <input
-                className="w-full px-3 py-2 border rounded bg-gray-800 text-white"
-                value={amt.magmaUnstake}
-                onChange={(e) => setAmt((s) => ({ ...s, magmaUnstake: e.target.value }))}
+            {/* Middle Column - Integrated Swap Interface */}
+            <div className="space-y-6">
+              <SwapInterface
+                smartAccountAddress={smartAccountAddress}
+                balances={balances}
+                onLog={addLog}
+                disabled={loading}
+                onBalanceRefresh={() => fetchBalances(false)}
               />
-              <button
-                className="w-full px-4 py-3 bg-blue-600 text-white rounded shadow"
-                onClick={() => unstakeMagma(amt.magmaUnstake)}
-                disabled={loading}
-              >
-                Unstake Magma
-              </button>
             </div>
 
-            <div className="space-y-2">
-              <label className="block text-sm">Stake MON → sMON (amount)</label>
-              <input
-                className="w-full px-3 py-2 border rounded bg-gray-800 text-white"
-                value={amt.kintsuStake}
-                onChange={(e) => setAmt((s) => ({ ...s, kintsuStake: e.target.value }))}
+            {/* Right Column - Manual Staking Actions and Logs */}
+            <div className="space-y-6">
+              {/* Traditional Staking Actions */}
+              <div className="bg-gray-800 p-6 rounded-lg">
+                <h3 className="text-lg font-semibold mb-4">Staking Actions:</h3>
+                <div className="space-y-4">
+                  {/* Magma Operations */}
+                  <div className="space-y-2">
+                    <label className="block text-sm text-gray-300">
+                      Stake MON → gMON (amount)
+                    </label>
+                    <input
+                      type="number"
+                      step="0.001"
+                      className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white"
+                      value={amt.magmaStake}
+                      onChange={(e) => setAmt((s) => ({ ...s, magmaStake: e.target.value }))}
+                    />
+                    <button
+                      onClick={() => handleStakeMagma(amt.magmaStake)}
+                      disabled={loading}
+                      className="w-full bg-purple-600 hover:bg-purple-700 disabled:bg-gray-600 py-2 rounded"
+                    >
+                      Stake Magma
+                    </button>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <label className="block text-sm text-gray-300">
+                      Unstake gMON → MON (amount)
+                    </label>
+                    <input
+                      type="number"
+                      step="0.001"
+                      className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white"
+                      value={amt.magmaUnstake}
+                      onChange={(e) => setAmt((s) => ({ ...s, magmaUnstake: e.target.value }))}
+                    />
+                    <button
+                      onClick={() => handleUnstakeMagma(amt.magmaUnstake)}
+                      disabled={loading}
+                      className="w-full bg-red-600 hover:bg-red-700 disabled:bg-gray-600 py-2 rounded"
+                    >
+                      Unstake Magma
+                    </button>
+                  </div>
+
+                  {/* Kintsu Operations */}
+                  <div className="space-y-2">
+                    <label className="block text-sm text-gray-300">
+                      Stake MON → sMON (amount)
+                    </label>
+                    <input
+                      type="number"
+                      step="0.001"
+                      className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white"
+                      value={amt.kintsuStake}
+                      onChange={(e) => setAmt((s) => ({ ...s, kintsuStake: e.target.value }))}
+                    />
+                    <button
+                      onClick={() => handleStakeKintsu(amt.kintsuStake)}
+                      disabled={loading}
+                      className="w-full bg-green-600 hover:bg-green-700 disabled:bg-gray-600 py-2 rounded"
+                    >
+                      Stake Kintsu
+                    </button>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="block text-sm text-gray-300">
+                      Instant Unstake sMON → MON (amount)
+                    </label>
+                    <input
+                      type="number"
+                      step="0.001"
+                      className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white"
+                      value={amt.kintsuUnstake}
+                      onChange={(e) => setAmt((s) => ({ ...s, kintsuUnstake: e.target.value }))}
+                    />
+                    <button
+                      onClick={() => handleUnstakeKintsu(amt.kintsuUnstake)}
+                      disabled={loading}
+                      className="w-full bg-orange-600 hover:bg-orange-700 disabled:bg-gray-600 py-2 rounded"
+                    >
+                      Instant Unstake
+                    </button>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="block text-sm text-gray-300">
+                      Request Unlock sMON (amount)
+                    </label>
+                    <input
+                      type="number"
+                      step="0.001"
+                      className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white"
+                      value={amt.kintsuUnstake}
+                      onChange={(e) => setAmt((s) => ({ ...s, kintsuUnstake: e.target.value }))}
+                    />
+                    <button
+                      onClick={() => handleRequestUnlock(amt.kintsuUnstake)}
+                      disabled={loading}
+                      className="w-full bg-yellow-600 hover:bg-yellow-700 disabled:bg-gray-600 py-2 rounded"
+                    >
+                      Request Unlock
+                    </button>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="block text-sm text-gray-300">
+                      Redeem Unlock Index
+                    </label>
+                    <input
+                      type="number"
+                      className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white"
+                      placeholder="0"
+                    />
+                    <button
+                      onClick={() => handleRedeemUnlock("0")}
+                      disabled={loading}
+                      className="w-full bg-teal-600 hover:bg-teal-700 disabled:bg-gray-600 py-2 rounded"
+                    >
+                      Redeem Unlock
+                    </button>
+                  </div>
+
+                  {/* Rebalance */}
+                  <button
+                    onClick={rebalance}
+                    disabled={loading}
+                    className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-600 py-2 rounded font-semibold"
+                  >
+                    Rebalance
+                  </button>
+                </div>
+              </div>
+
+              {/* Transaction Logs */}
+              <TransactionLogger 
+                title="Logs:"
+                logs={logs}
+                onClear={clearLogs}
               />
-              <button
-                className="w-full px-4 py-3 bg-green-600 text-white rounded shadow"
-                onClick={() => stakeKintsu(amt.kintsuStake)}
-                disabled={loading}
-              >
-                Stake Kintsu
-              </button>
             </div>
-
-            <div className="space-y-2">
-              <label className="block text-sm">Instant Unstake sMON → MON (amount)</label>
-              <input
-                className="w-full px-3 py-2 border rounded bg-gray-800 text-white"
-                value={amt.kintsuUnstake}
-                onChange={(e) => setAmt((s) => ({ ...s, kintsuUnstake: e.target.value }))}
-              />
-              <button
-                className="w-full px-4 py-3 bg-green-600 text-white rounded shadow"
-                onClick={() => unstakeKintsu(amt.kintsuUnstake)}
-                disabled={loading}
-              >
-                Instant Unstake Kintsu
-              </button>
-            </div>
-
-            <div className="space-y-2">
-              <label className="block text-sm">Request Unlock sMON (amount)</label>
-              <input
-                className="w-full px-3 py-2 border rounded bg-gray-800 text-white"
-                value={amt.kintsuUnstake}
-                onChange={(e) => setAmt((s) => ({ ...s, kintsuUnstake: e.target.value }))}
-              />
-              <button
-                className="w-full px-4 py-3 bg-yellow-600 text-white rounded shadow"
-                onClick={() => requestUnlock(amt.kintsuUnstake)}
-                disabled={loading}
-              >
-                Request Unlock
-              </button>
-            </div>
-
-            <div className="space-y-2">
-              <label className="block text-sm">Redeem Unlock Index</label>
-              <input
-                className="w-full px-3 py-2 border rounded bg-gray-800 text-white"
-                placeholder="0"
-              />
-              <button
-                className="w-full px-4 py-3 bg-yellow-600 text-white rounded shadow"
-                onClick={() => redeemUnlock('0')}
-                disabled={loading}
-              >
-                Redeem Unlock
-              </button>
-            </div>
-          </section>
-
-          {/* sMON Approvals */}
-          <section className="mb-6 space-y-2">
-            <h2 className="text-xl font-semibold mb-2">sMON Approvals (AA)</h2>
-            <div className="flex gap-2">
-              <button
-                className="flex-1 px-4 py-3 bg-purple-700 text-white rounded shadow"
-                onClick={checkSmonApprovals}
-                disabled={loading}
-              >
-                Check sMON Approvals
-              </button>
-              <button
-                className="flex-1 px-4 py-3 bg-purple-700 text-white rounded shadow"
-                onClick={approveSmon}
-                disabled={loading}
-              >
-                Approve sMON (Batch AA)
-              </button>
-            </div>
-            <p className="text-xs text-gray-300">
-              Checks ERC20→Permit2 and Permit2→Router allowances; approval creates both in one batched UserOperation.
-            </p>
-          </section>
-
-          <section className="mb-6">
-            <button
-              className="w-full px-6 py-4 bg-indigo-700 text-white rounded-lg font-semibold text-lg"
-              onClick={rebalance}
-              disabled={loading}
-            >
-              {loading ? 'Rebalancing…' : 'Rebalance All Funds'}
-            </button>
-          </section>
-        </>
-      )}
-
-      {/* Logs */}
-      <section>
-        <h2 className="text-xl font-semibold mb-2">Logs:</h2>
-        <div className="bg-gray-600 p-3 rounded h-72 overflow-y-auto font-mono text-sm">
-          {logs.length === 0 ? (
-            <p className="italic text-gray-300">No logs yet. Actions will be logged here.</p>
-          ) : (
-            logs.map((log, idx) => <div key={idx}>{log}</div>)
-          )}
-        </div>
-      </section>
-    </main>
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
