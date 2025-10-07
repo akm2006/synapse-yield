@@ -1,54 +1,40 @@
-// src/app/api/tx/magma/stake/route.ts
+// src/app/api/tx/magma/stake/route.ts - DEPRECATED ROUTE
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
 import { NextResponse } from 'next/server';
-import type { Address } from 'viem';
-import { encodeFunctionData, parseUnits } from 'viem';
-import { getAAClient, settleUserOperation } from '@/lib/aaClient';
-import { magmaAbi } from '@/lib/abis';
-import { CONTRACTS } from '@/lib/contracts';
-import { emitLog, endLog } from '@/lib/logBus';
 
 export async function POST(req: Request) {
-  let opId: string | undefined;
-  try {
-    const { amount, opId: requestOpId } = await req.json();
-    opId = requestOpId;
-    const value = parseUnits(amount, 18);
-
-    const log = (m: string) => opId ? emitLog(opId, m) : console.log(m);
-
-    log(`Staking ${amount} MON to Magma`);
-
-    const { client } = await getAAClient();
-    const data = encodeFunctionData({
-      abi: magmaAbi,
-      functionName: 'depositMon',
-      args: [],
-    });
-
-    const userOpHash = await client.sendUserOperation({
-      calls: [{ to: CONTRACTS.MAGMA_STAKE as Address, data, value }],
-    });
-
-    log(`Stake submitted: ${userOpHash}`);
-    const settled = await settleUserOperation(userOpHash);
-    log(`Stake confirmed: ${settled.transactionHash} at block ${settled.blockNumber}`);
-
-    if (opId) endLog(opId);
-
-    return NextResponse.json({
-      ok: true,
-      userOpHash,
-      transactionHash: settled.transactionHash,
-      blockNumber: settled.blockNumber ? settled.blockNumber.toString() : null,
-    });
-  } catch (e: any) {
-    if (opId) {
-      emitLog(opId, `Error: ${e?.message ?? String(e)}`);
-      endLog(opId);
+  console.warn('⚠️  DEPRECATED: /api/tx/magma/stake is deprecated. Use /api/delegate/execute instead.');
+  
+  return NextResponse.json({
+    ok: false,
+    error: '🔒 SECURITY: Direct EOA usage disabled. Use delegation flow instead.',
+    deprecated: true,
+    migration: {
+      newEndpoint: '/api/delegate/execute',
+      operation: 'stake-magma',
+      requiredFields: ['userAddress', 'operation', 'amount', 'delegation'],
+      securityImprovement: 'Private keys are now server-side only with delegation-based permissions.',
+      example: {
+        method: 'POST',
+        url: '/api/delegate/execute',
+        body: {
+          userAddress: 'USER_SMART_ACCOUNT_ADDRESS',
+          operation: 'stake-magma',
+          amount: '0.01',
+          delegation: 'SIGNED_DELEGATION_OBJECT'
+        }
+      }
     }
-    return NextResponse.json({ ok: false, error: e?.message ?? String(e) }, { status: 500 });
-  }
+  }, { status: 410 }); // Gone - Permanently removed
+}
+
+export async function GET() {
+  return NextResponse.json({
+    deprecated: true,
+    message: 'This endpoint has been replaced by the secure delegation flow',
+    newEndpoint: '/api/delegate/execute',
+    securityNotice: 'Private keys are no longer exposed to frontend for enhanced security'
+  }, { status: 410 });
 }

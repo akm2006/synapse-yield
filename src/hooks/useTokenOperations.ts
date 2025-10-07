@@ -24,7 +24,7 @@ export function useTokenOperations() {
   }, []);
 
   const stakeMagma = useCallback((amount: string, opId: string) =>
-    postJSON({ path: '/api/tx/magma/stake', body: { amount, opId } }),
+    postJSON({ path: '/api/delegate/execute', body: { amount, opId } }),
   [postJSON]);
 
   const unstakeMagma = useCallback((amount: string, opId: string) =>
@@ -32,7 +32,7 @@ export function useTokenOperations() {
   [postJSON]);
 
   const stakeKintsu = useCallback((amount: string, receiver: Address, opId: string) =>
-    postJSON({ path: '/api/tx/kintsu/deposit', body: { amount, receiver, opId } }),
+    postJSON({ path: '/api/delegate/execute', body: { amount, receiver, opId } }),
   [postJSON]);
 
   const unstakeKintsu = useCallback((
@@ -45,7 +45,7 @@ export function useTokenOperations() {
     opId: string
   ) =>
     postJSON({
-      path: '/api/tx/kintsu/unstake',
+      path: '/api/delegate/execute',
       body: { amountIn, minOut, fee, recipient, unwrap, deadlineSec, opId },
     }),
   [postJSON]);

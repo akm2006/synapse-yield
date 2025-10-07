@@ -1,4 +1,5 @@
-// src/lib/aaClient.ts
+
+// src/lib/aaClient.ts - SECURE VERSION (Server-side only AA client)
 import type { Address, Chain } from 'viem';
 import { createPublicClient, http } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
@@ -8,7 +9,7 @@ import { createPimlicoClient } from 'permissionless/clients/pimlico';
 import { Implementation, toMetaMaskSmartAccount } from '@metamask/delegation-toolkit';
 
 const RPC = process.env.NEXT_PUBLIC_RPC_URL!;
-const BUNDLER = process.env.NEXT_PUBLIC_PIMLICO_BUNDLER_URL!;
+const BUNDLER = process.env.NEXT_PUBLIC_PIMLICO_BUNDLER_URL || `https://api.pimlico.io/v2/10143/rpc?apikey=${process.env.PIMLICO_API_KEY}`;
 const ENTRYPOINT = (process.env.NEXT_PUBLIC_ENTRYPOINT_ADDRESS || entryPoint07Address) as Address;
 
 // 1) Chain (Monad Testnet)
@@ -31,11 +32,25 @@ export const pimlico = createPimlicoClient({
   entryPoint: { address: ENTRYPOINT, version: '0.7' },
 });
 
-// 4) Owner signer (server EOA)
-const owner = privateKeyToAccount(process.env.NEXT_PUBLIC_EOA_PRIVATE_KEY as `0x${string}`);
+// 4) SECURE: Server-only function to get owner signer
+function getServerOwner() {
+  // ✅ SECURITY CHECK: Only allow server-side access
+  if (typeof window !== 'undefined') {
+    throw new Error('❌ SECURITY: Private key access attempted on client side!');
+  }
+  
+  const privateKey = process.env.DELEGATE_PRIVATE_KEY as `0x${string}`;
+  if (!privateKey) {
+    throw new Error('DELEGATE_PRIVATE_KEY environment variable is required');
+  }
+  
+  return privateKeyToAccount(privateKey);
+}
 
-// 5) Create a MetaMask Smart Account (delegator)
+// 5) SECURE: Server-only function to create MetaMask Smart Account
 export async function getMetaMaskSmartAccount() {
+  const owner = getServerOwner(); // This will throw on client-side
+  
   const sa = await toMetaMaskSmartAccount({
     client: aaPublic,
     implementation: Implementation.Hybrid,
@@ -43,12 +58,19 @@ export async function getMetaMaskSmartAccount() {
     deploySalt: '0x',
     signer: { account: owner },
   });
+  
   return sa;
 }
 
-// 6) SmartAccountClient with chain, bundler, paymaster
+// 6) SECURE: Server-only SmartAccountClient creation
 export async function getAAClient() {
+  // ✅ Double-check server-side execution
+  if (typeof window !== 'undefined') {
+    throw new Error('❌ SECURITY: AA client creation attempted on client side!');
+  }
+  
   const account = await getMetaMaskSmartAccount();
+  
   const client = createSmartAccountClient({
     account,
     chain: monadTestnet,
@@ -58,13 +80,14 @@ export async function getAAClient() {
       estimateFeesPerGas: async () => (await pimlico.getUserOperationGasPrice()).fast,
     },
   });
+  
   return { account, client };
 }
 
-// 7) Resolve UserOperation -> Transaction & Block
+// 7) Resolve UserOperation → Transaction & Block (unchanged)
 export async function settleUserOperation(uoHash: `0x${string}`) {
-  // Try vendor helper (SDKs differ in surface)
   let uoReceipt: any = null;
+  
   try {
     // @ts-ignore – available on recent permissionless clients
     uoReceipt = await pimlico.waitForUserOperationReceipt({ hash: uoHash });
@@ -80,7 +103,7 @@ export async function settleUserOperation(uoHash: `0x${string}`) {
       await new Promise((r) => setTimeout(r, 1500));
     }
   }
-
+  
   if (!uoReceipt) {
     return {
       userOpHash: uoHash,
@@ -88,13 +111,13 @@ export async function settleUserOperation(uoHash: `0x${string}`) {
       blockNumber: null as bigint | null,
     };
   }
-
+  
   // Different SDKs return different shapes – normalize
   const txHash: `0x${string}` | undefined =
     uoReceipt?.receipt?.transactionHash ??
     uoReceipt?.transactionHash ??
     uoReceipt?.receipts?.[0]?.transactionHash;
-
+    
   if (!txHash) {
     return {
       userOpHash: uoHash,
@@ -102,11 +125,26 @@ export async function settleUserOperation(uoHash: `0x${string}`) {
       blockNumber: null,
     };
   }
-
+  
   const txReceipt = await aaPublic.getTransactionReceipt({ hash: txHash });
+  
   return {
     userOpHash: uoHash,
     transactionHash: txHash,
     blockNumber: txReceipt.blockNumber,
   };
 }
+
+// 8) NEW: Client-safe public utilities (can be used on frontend)
+export const publicUtils = {
+  chain: monadTestnet,
+  publicClient: aaPublic,
+  
+  // Helper to format addresses
+  formatAddress: (address: string) => 
+    `${address.slice(0, 6)}...${address.slice(-4)}`,
+    
+  // Helper to get explorer URL
+  getExplorerUrl: (txHash: string) => 
+    `https://testnet.monadexplorer.com/tx/${txHash}`,
+};

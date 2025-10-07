@@ -3,7 +3,7 @@
 
 import { useState, useEffect } from 'react';
 import type { Address } from 'viem';
-import { createSmartAccount } from '@/lib/smartAccountClient';
+import { createServerSmartAccount } from '@/lib/smartAccountClient';
 
 interface SmartAccountManagerProps {
   onSmartAccountReady: (address: Address) => void;
@@ -21,7 +21,7 @@ export default function SmartAccountManager({ onSmartAccountReady, onLog }: Smar
     onLog('[INFO] Creating Smart Account...');
 
     try {
-      const { smartAccount, address } = await createSmartAccount();
+      const { smartAccount, address } = await createServerSmartAccount();
       
       setSmartAccountAddress(address);
       onSmartAccountReady(address);
