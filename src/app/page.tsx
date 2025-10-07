@@ -389,260 +389,321 @@ export default function Home() {
     }
   };
 
-  return (
-    <div className="min-h-screen bg-gray-900 text-white p-8">
-      <div className="max-w-7xl mx-auto">
-        <h1 className="text-3xl font-bold mb-8">Phase 2: Smart Account Dashboard</h1>
+ return (
+  <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900/20 to-gray-900 text-white">
+    <div className="max-w-7xl mx-auto p-6 lg:p-8">
+      {/* Header */}
+      <div className="mb-8">
+        <h1 className="text-4xl lg:text-5xl font-bold bg-gradient-to-r from-purple-400 to-blue-400 bg-clip-text text-transparent mb-2">
+          Smart Account Dashboard
+        </h1>
+        <p className="text-gray-400">Secure staking with MetaMask Delegation</p>
+      </div>
 
-        <SmartAccountManager
-          onSmartAccountReady={(address: Address) => {
-            setSmartAccountReady(true);  // ignore the address argument
-            addLog(`[INFO] Smart Account ready with address: ${address}`);
+      {/* Smart Account Manager */}
+      <SmartAccountManager
+        onSmartAccountReady={(address: Address) => {
+          setSmartAccountReady(true);
+          addLog(`[INFO] Smart Account ready with address: ${address}`);
+        }}
+        onLog={addLog}
+      />
+
+      {/* Delegation Setup - Show when smart account exists but no delegation */}
+      {smartAccountAddress && !delegation && (
+        <DelegationManager
+          smartAccountAddress={smartAccountAddress}
+          onDelegationCreated={(newDelegation) => {
+            setDelegation(newDelegation);
+            addLog('[SUCCESS] Delegation setup completed - you can now stake/unstake!');
           }}
+          isCreating={false}
           onLog={addLog}
         />
+      )}
 
-        {/* Delegation Setup - Show when smart account exists but no delegation */}
-        {smartAccountAddress && !delegation && (
-          <DelegationManager
-            smartAccountAddress={smartAccountAddress}
-            onDelegationCreated={(newDelegation) => {
-              setDelegation(newDelegation);
-              addLog('[SUCCESS] Delegation setup completed - you can now stake/unstake!');
-            }}
-            isCreating={false}
-            onLog={addLog}
-          />
-        )}
-
-        {/* Delegation Status - Show when delegation is active */}
-        {smartAccountAddress && delegation && (
-          <div className="bg-green-900/20 border border-green-500/50 rounded-lg p-4 mb-6">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center">
-                <span className="text-green-400 text-xl mr-3">✅</span>
-                <div>
-                  <h3 className="text-green-400 font-semibold">Delegation Active</h3>
-                  <p className="text-green-200 text-sm">One-click staking/unstaking enabled via secure delegation</p>
-                </div>
+      {/* Delegation Status - Show when delegation is active */}
+      {smartAccountAddress && delegation && (
+        <div className="bg-gradient-to-r from-green-900/30 to-emerald-900/30 border border-green-500/50 rounded-xl p-6 mb-8 shadow-lg">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-4">
+              <div className="bg-green-500/20 p-3 rounded-full">
+                <span className="text-green-400 text-2xl">✅</span>
               </div>
-              <button
-                onClick={() => {
-                  if (confirm('Are you sure you want to clear the delegation? You will need to create a new one to continue staking.')) {
-                    setDelegation(null);
-                    localStorage.removeItem(`delegation_${smartAccountAddress.toLowerCase()}`);
-                    addLog('[INFO] Delegation cleared - create a new one to continue staking');
-                  }
-                }}
-                className="text-red-400 hover:text-red-300 text-sm underline px-2 py-1"
-                title="Clear delegation and require new setup"
-              >
-                Clear
-              </button>
+              <div>
+                <h3 className="text-green-400 font-semibold text-lg">Delegation Active</h3>
+                <p className="text-green-200 text-sm">One-click staking/unstaking enabled via secure delegation</p>
+              </div>
             </div>
+            <button
+              onClick={() => {
+                if (confirm('Are you sure you want to clear the delegation? You will need to create a new one to continue staking.')) {
+                  setDelegation(null);
+                  localStorage.removeItem(`delegation_${smartAccountAddress.toLowerCase()}`);
+                  addLog('[INFO] Delegation cleared - create a new one to continue staking');
+                }
+              }}
+              className="text-red-400 hover:text-red-300 hover:bg-red-900/20 text-sm px-4 py-2 rounded-lg transition-all duration-200"
+              title="Clear delegation and require new setup"
+            >
+              Clear Delegation
+            </button>
           </div>
-        )}
+        </div>
+      )}
 
-        {smartAccountAddress && delegation && (
-          <div className="grid grid-cols-1 xl:grid-cols-3 gap-8 mt-8">
-            {/* Left Column - Balances and Fund */}
-            <div className="space-y-6">
-              <BalanceDisplay
-                smartAccountAddress={smartAccountAddress}
-                balances={balances}
-                loading={loading || balancesLoading}
-              />
+      {smartAccountAddress && delegation && (
+        <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 lg:gap-8">
+          {/* Left Column - Balances and Fund */}
+          <div className="space-y-6">
+            <BalanceDisplay
+              smartAccountAddress={smartAccountAddress}
+              balances={balances}
+              loading={loading || balancesLoading}
+            />
 
-              <div className="bg-gray-800 p-6 rounded-lg">
-                <h3 className="text-lg font-semibold mb-4">Fund Smart Account</h3>
-                <div className="flex gap-4">
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.001"
-                    value={fundAmount}
-                    onChange={(e) => setFundAmount(e.target.value)}
-                    placeholder="Amount MON"
-                    className="flex-1 p-2 bg-gray-700 border border-gray-600 rounded text-white"
-                  />
-                  <button
-                    onClick={fundSmartAccount}
-                    disabled={loading}
-                    className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 px-6 py-2 rounded font-semibold"
-                  >
-                    Fund
-                  </button>
+            {/* Fund Smart Account Card */}
+            <div className="bg-gradient-to-br from-gray-800 to-gray-800/50 backdrop-blur-sm p-6 rounded-xl border border-gray-700/50 shadow-lg">
+              <div className="flex items-center mb-4">
+                <div className="bg-blue-500/20 p-2 rounded-lg mr-3">
+                  <span className="text-2xl">💰</span>
                 </div>
-                <p className="text-sm text-gray-400 mt-2">
-                  This will prompt the connected wallet to send MON to the smart account address.
+                <h3 className="text-xl font-semibold">Fund Account</h3>
+              </div>
+              <div className="space-y-3">
+                <input
+                  type="number"
+                  min="0"
+                  step="0.001"
+                  value={fundAmount}
+                  onChange={(e) => setFundAmount(e.target.value)}
+                  placeholder="Amount in MON"
+                  className="w-full p-3 bg-gray-900/50 border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all"
+                />
+                <button
+                  onClick={fundSmartAccount}
+                  disabled={loading || !fundAmount || parseFloat(fundAmount) <= 0}
+                  className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 disabled:from-gray-600 disabled:to-gray-700 disabled:cursor-not-allowed px-6 py-3 rounded-lg font-semibold shadow-lg transition-all duration-200 transform hover:scale-[1.02]"
+                >
+                  Fund Account
+                </button>
+                <p className="text-xs text-gray-400 leading-relaxed">
+                  💡 This will prompt your connected wallet to send MON to the smart account
                 </p>
               </div>
-
-              <TokenTransfer
-                smartAccountAddress={smartAccountAddress}
-                balances={{
-                  native: balances.native,
-                  kintsu: balances.kintsu,
-                  magma: balances.magma,
-                }}
-                onLog={addLog}
-                disabled={loading}
-              />
             </div>
 
-            {/* Middle Column - Integrated Swap Interface */}
-            <div className="space-y-6">
-              <SwapInterface
-                smartAccountAddress={smartAccountAddress}
-                balances={balances}
-                onLog={addLog}
-                disabled={loading}
-                onBalanceRefresh={() => fetchBalances(false)}
-              />
-            </div>
+            <TokenTransfer
+              smartAccountAddress={smartAccountAddress}
+              balances={{
+                native: balances.native,
+                kintsu: balances.kintsu,
+                magma: balances.magma,
+              }}
+              onLog={addLog}
+              disabled={loading}
+            />
+          </div>
 
-            {/* Right Column - Manual Staking Actions and Logs */}
-            <div className="space-y-6">
-              <div className="bg-gray-800 p-6 rounded-lg">
-                <h3 className="text-lg font-semibold mb-4">Staking Actions:</h3>
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <label className="block text-sm text-gray-300">
-                      Stake MON → gMON (amount)
-                    </label>
-                    <input
-                      type="number"
-                      step="0.001"
-                      className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white"
-                      value={amt.magmaStake}
-                      onChange={(e) => setAmt((s) => ({ ...s, magmaStake: e.target.value }))}
-                    />
-                    <button
-                      onClick={() => handleStakeMagma(amt.magmaStake)}
-                      disabled={loading}
-                      className="w-full bg-purple-600 hover:bg-purple-700 disabled:bg-gray-600 py-2 rounded"
-                    >
-                      Stake Magma
-                    </button>
-                  </div>
+          {/* Middle Column - Swap Interface */}
+          <div className="space-y-6">
+            <SwapInterface
+              smartAccountAddress={smartAccountAddress}
+              balances={balances}
+              onLog={addLog}
+              disabled={loading}
+              onBalanceRefresh={() => fetchBalances(false)}
+            />
+          </div>
 
-                  <div className="space-y-2">
-                    <label className="block text-sm text-gray-300">
-                      Unstake gMON → MON (amount)
-                    </label>
-                    <input
-                      type="number"
-                      step="0.001"
-                      className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white"
-                      value={amt.magmaUnstake}
-                      onChange={(e) => setAmt((s) => ({ ...s, magmaUnstake: e.target.value }))}
-                    />
-                    <button
-                      onClick={() => handleUnstakeMagma(amt.magmaUnstake)}
-                      disabled={loading}
-                      className="w-full bg-red-600 hover:bg-red-700 disabled:bg-gray-600 py-2 rounded"
-                    >
-                      Unstake Magma
-                    </button>
-                  </div>
+          {/* Right Column - Staking Actions and Logs */}
+          <div className="space-y-6">
+            {/* Staking Actions Card */}
+            <div className="bg-gradient-to-br from-gray-800 to-gray-800/50 backdrop-blur-sm p-6 rounded-xl border border-gray-700/50 shadow-lg">
+              <div className="flex items-center mb-6">
+                <div className="bg-purple-500/20 p-2 rounded-lg mr-3">
+                  <span className="text-2xl">⚡</span>
+                </div>
+                <h3 className="text-xl font-semibold">Staking Actions</h3>
+              </div>
+              
+              <div className="space-y-5">
+                {/* Magma Stake */}
+                <div className="bg-gray-900/50 p-4 rounded-lg border border-purple-500/20">
+                  <label className="flex items-center text-sm font-medium text-gray-300 mb-2">
+                    <span className="bg-purple-500/20 px-2 py-0.5 rounded text-xs mr-2">Magma</span>
+                    Stake MON → gMON
+                  </label>
+                  <input
+                    type="number"
+                    step="0.001"
+                    min="0.001"
+                    className="w-full px-3 py-2.5 bg-gray-800 border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 transition-all mb-3"
+                    value={amt.magmaStake}
+                    onChange={(e) => setAmt((s) => ({ ...s, magmaStake: e.target.value }))}
+                    placeholder="Amount"
+                  />
+                  <button
+                    onClick={() => handleStakeMagma(amt.magmaStake)}
+                    disabled={loading}
+                    className="w-full bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 disabled:from-gray-600 disabled:to-gray-700 disabled:cursor-not-allowed py-2.5 rounded-lg font-medium shadow-md transition-all duration-200 transform hover:scale-[1.02]"
+                  >
+                    {loading ? 'Processing...' : 'Stake to Magma'}
+                  </button>
+                </div>
 
-                  <div className="space-y-2">
-                    <label className="block text-sm text-gray-300">
-                      Stake MON → sMON (amount)
-                    </label>
-                    <input
-                      type="number"
-                      step="0.001"
-                      className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white"
-                      value={amt.kintsuStake}
-                      onChange={(e) => setAmt((s) => ({ ...s, kintsuStake: e.target.value }))}
-                    />
-                    <button
-                      onClick={() => handleStakeKintsu(amt.kintsuStake)}
-                      disabled={loading}
-                      className="w-full bg-green-600 hover:bg-green-700 disabled:bg-gray-600 py-2 rounded"
-                    >
-                      Stake Kintsu
-                    </button>
-                  </div>
+                {/* Magma Unstake */}
+                <div className="bg-gray-900/50 p-4 rounded-lg border border-red-500/20">
+                  <label className="flex items-center text-sm font-medium text-gray-300 mb-2">
+                    <span className="bg-red-500/20 px-2 py-0.5 rounded text-xs mr-2">Magma</span>
+                    Unstake gMON → MON
+                  </label>
+                  <input
+                    type="number"
+                    step="0.001"
+                    className="w-full px-3 py-2.5 bg-gray-800 border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:border-red-500 focus:ring-2 focus:ring-red-500/20 transition-all mb-3"
+                    value={amt.magmaUnstake}
+                    onChange={(e) => setAmt((s) => ({ ...s, magmaUnstake: e.target.value }))}
+                    placeholder="Amount"
+                  />
+                  <button
+                    onClick={() => handleUnstakeMagma(amt.magmaUnstake)}
+                    disabled={loading}
+                    className="w-full bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 disabled:from-gray-600 disabled:to-gray-700 disabled:cursor-not-allowed py-2.5 rounded-lg font-medium shadow-md transition-all duration-200 transform hover:scale-[1.02]"
+                  >
+                    {loading ? 'Processing...' : 'Unstake from Magma'}
+                  </button>
+                </div>
 
-                  <div className="space-y-2">
-                    <label className="block text-sm text-gray-300">
-                      Instant Unstake sMON → MON (amount)
-                    </label>
-                    <input
-                      type="number"
-                      step="0.001"
-                      className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white"
-                      value={amt.kintsuUnstake}
-                      onChange={(e) => setAmt((s) => ({ ...s, kintsuUnstake: e.target.value }))}
-                    />
-                    <button
-                      onClick={() => handleUnstakeKintsu(amt.kintsuUnstake)}
-                      disabled={loading}
-                      className="w-full bg-orange-600 hover:bg-orange-700 disabled:bg-gray-600 py-2 rounded"
-                    >
-                      Instant Unstake
-                    </button>
-                  </div>
+                {/* Kintsu Stake */}
+                <div className="bg-gray-900/50 p-4 rounded-lg border border-green-500/20">
+                  <label className="flex items-center justify-between text-sm font-medium text-gray-300 mb-2">
+                    <span className="flex items-center">
+                      <span className="bg-green-500/20 px-2 py-0.5 rounded text-xs mr-2">Kintsu</span>
+                      Stake MON → sMON
+                    </span>
+                    <span className="text-xs text-green-400">Min: 0.01 MON</span>
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0.01"
+                    className="w-full px-3 py-2.5 bg-gray-800 border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:border-green-500 focus:ring-2 focus:ring-green-500/20 transition-all mb-2"
+                    value={amt.kintsuStake}
+                    onChange={(e) => setAmt((s) => ({ ...s, kintsuStake: e.target.value }))}
+                    placeholder="Min: 0.01"
+                  />
+                  {parseFloat(amt.kintsuStake) > 0 && parseFloat(amt.kintsuStake) < 0.01 && (
+                    <div className="mb-3 p-2 bg-yellow-900/20 border border-yellow-500/30 rounded-lg">
+                      <p className="text-xs text-yellow-400 flex items-center">
+                        <span className="mr-1">⚠️</span>
+                        Amount below minimum deposit (0.01 MON)
+                      </p>
+                    </div>
+                  )}
+                  <button
+                    onClick={() => handleStakeKintsu(amt.kintsuStake)}
+                    disabled={loading || parseFloat(amt.kintsuStake) < 0.01}
+                    className="w-full bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 disabled:from-gray-600 disabled:to-gray-700 disabled:cursor-not-allowed py-2.5 rounded-lg font-medium shadow-md transition-all duration-200 transform hover:scale-[1.02]"
+                  >
+                    {loading ? 'Processing...' : parseFloat(amt.kintsuStake) < 0.01 ? 'Minimum 0.01 MON' : 'Stake to Kintsu'}
+                  </button>
+                </div>
 
-                  <div className="space-y-2">
-                    <label className="block text-sm text-gray-300">
-                      Request Unlock sMON (amount)
-                    </label>
-                    <input
-                      type="number"
-                      step="0.001"
-                      className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white"
-                      value={amt.kintsuUnstake}
-                      onChange={(e) => setAmt((s) => ({ ...s, kintsuUnstake: e.target.value }))}
-                    />
-                    <button
-                      onClick={() => handleRequestUnlock(amt.kintsuUnstake)}
-                      disabled={loading}
-                      className="w-full bg-yellow-600 hover:bg-yellow-700 disabled:bg-gray-600 py-2 rounded"
-                    >
-                      Request Unlock
-                    </button>
-                  </div>
+                {/* Kintsu Instant Unstake */}
+                <div className="bg-gray-900/50 p-4 rounded-lg border border-orange-500/20">
+                  <label className="flex items-center text-sm font-medium text-gray-300 mb-2">
+                    <span className="bg-orange-500/20 px-2 py-0.5 rounded text-xs mr-2">Kintsu</span>
+                    Instant Unstake sMON → MON
+                  </label>
+                  <input
+                    type="number"
+                    step="0.001"
+                    className="w-full px-3 py-2.5 bg-gray-800 border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 transition-all mb-3"
+                    value={amt.kintsuUnstake}
+                    onChange={(e) => setAmt((s) => ({ ...s, kintsuUnstake: e.target.value }))}
+                    placeholder="Amount"
+                  />
+                  <button
+                    onClick={() => handleUnstakeKintsu(amt.kintsuUnstake)}
+                    disabled={loading}
+                    className="w-full bg-gradient-to-r from-orange-600 to-orange-700 hover:from-orange-700 hover:to-orange-800 disabled:from-gray-600 disabled:to-gray-700 disabled:cursor-not-allowed py-2.5 rounded-lg font-medium shadow-md transition-all duration-200 transform hover:scale-[1.02]"
+                  >
+                    {loading ? 'Processing...' : 'Instant Unstake'}
+                  </button>
+                  <p className="text-xs text-gray-400 mt-2">⚡ Swap via PancakeSwap (instant)</p>
+                </div>
 
-                  <div className="space-y-2">
-                    <label className="block text-sm text-gray-300">
-                      Redeem Unlock Index
-                    </label>
-                    <input
-                      type="number"
-                      className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white"
-                      placeholder="0"
-                    />
-                    <button
-                      onClick={() => handleRedeemUnlock("0")}
-                      disabled={loading}
-                      className="w-full bg-teal-600 hover:bg-teal-700 disabled:bg-gray-600 py-2 rounded"
-                    >
-                      Redeem Unlock
-                    </button>
-                  </div>
+                {/* Request Unlock */}
+                <div className="bg-gray-900/50 p-4 rounded-lg border border-yellow-500/20">
+                  <label className="flex items-center text-sm font-medium text-gray-300 mb-2">
+                    <span className="bg-yellow-500/20 px-2 py-0.5 rounded text-xs mr-2">Kintsu</span>
+                    Request Unlock sMON
+                  </label>
+                  <input
+                    type="number"
+                    step="0.001"
+                    className="w-full px-3 py-2.5 bg-gray-800 border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:border-yellow-500 focus:ring-2 focus:ring-yellow-500/20 transition-all mb-3"
+                    value={amt.kintsuUnstake}
+                    onChange={(e) => setAmt((s) => ({ ...s, kintsuUnstake: e.target.value }))}
+                    placeholder="Amount"
+                  />
+                  <button
+                    onClick={() => handleRequestUnlock(amt.kintsuUnstake)}
+                    disabled={loading}
+                    className="w-full bg-gradient-to-r from-yellow-600 to-yellow-700 hover:from-yellow-700 hover:to-yellow-800 disabled:from-gray-600 disabled:to-gray-700 disabled:cursor-not-allowed py-2.5 rounded-lg font-medium shadow-md transition-all duration-200 transform hover:scale-[1.02]"
+                  >
+                    {loading ? 'Processing...' : 'Request Unlock'}
+                  </button>
+                  <p className="text-xs text-gray-400 mt-2">⏱️ Standard unlock (wait period)</p>
+                </div>
 
+                {/* Redeem Unlock */}
+                <div className="bg-gray-900/50 p-4 rounded-lg border border-teal-500/20">
+                  <label className="flex items-center text-sm font-medium text-gray-300 mb-2">
+                    <span className="bg-teal-500/20 px-2 py-0.5 rounded text-xs mr-2">Kintsu</span>
+                    Redeem Unlock Index
+                  </label>
+                  <input
+                    type="number"
+                    className="w-full px-3 py-2.5 bg-gray-800 border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20 transition-all mb-3"
+                    placeholder="Unlock index (e.g., 0)"
+                    defaultValue="0"
+                  />
+                  <button
+                    onClick={() => handleRedeemUnlock("0")}
+                    disabled={loading}
+                    className="w-full bg-gradient-to-r from-teal-600 to-teal-700 hover:from-teal-700 hover:to-teal-800 disabled:from-gray-600 disabled:to-gray-700 disabled:cursor-not-allowed py-2.5 rounded-lg font-medium shadow-md transition-all duration-200 transform hover:scale-[1.02]"
+                  >
+                    {loading ? 'Processing...' : 'Redeem Unlock'}
+                  </button>
+                </div>
+
+                {/* Rebalance Button */}
+                <div className="pt-2">
                   <button
                     onClick={rebalance}
                     disabled={loading}
-                    className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-600 py-2 rounded font-semibold"
+                    className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 disabled:from-gray-600 disabled:to-gray-700 disabled:cursor-not-allowed py-3 rounded-lg font-semibold shadow-lg transition-all duration-200 transform hover:scale-[1.02]"
                   >
-                    Rebalance
+                    {loading ? 'Processing...' : '🔄 Auto Rebalance'}
                   </button>
+                  <p className="text-xs text-gray-400 mt-2 text-center">
+                    Automatically balance between Magma and Kintsu
+                  </p>
                 </div>
               </div>
-
-              <TransactionLogger
-                title="Logs:"
-                logs={logs}
-                onClear={clearLogs}
-              />
             </div>
+
+            {/* Transaction Logs */}
+            <TransactionLogger
+              title="Transaction Logs"
+              logs={logs}
+              onClear={clearLogs}
+            />
           </div>
-        )}
-      </div>
+        </div>
+      )}
     </div>
-  );
-}
+  </div>
+);}

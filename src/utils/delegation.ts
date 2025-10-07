@@ -20,7 +20,7 @@ export function createStakingDelegation(
       type: "functionCall",
       targets: [
         CONTRACTS.MAGMA_STAKE,
-        CONTRACTS.KINTSU,
+        CONTRACTS.KINTSU,CONTRACTS.PERMIT2,
         // Add other contract addresses here if needed
       ],
       selectors: [ // MAGMA staking functions
@@ -36,21 +36,21 @@ export function createStakingDelegation(
   });
 }
 // Example: unlimited native token transfer for testing
-export function createTransferDelegation(
-  delegator: MetaMaskSmartAccount,
-  delegate: Address,
-  maxAmount?: bigint
-): Delegation {
-  return createDelegation({
-  from: delegator.address,
-  to: delegate,
-  environment: delegator.environment,
-  scope: {
-    type: "nativeTokenTransferAmount",
-    maxAmount: 2n ** 256n - 1n, // unlimited for testing
-  },
-  });
-}
+// export function createTransferDelegation(
+//   delegator: MetaMaskSmartAccount,
+//   delegate: Address,
+//   maxAmount?: bigint
+// ): Delegation {
+//   return createDelegation({
+//   from: delegator.address,
+//   to: delegate,
+//   environment: delegator.environment,
+//   scope: {
+//     type: "nativeTokenTransferAmount",
+//     maxAmount: 2n ** 256n - 1n, // unlimited for testing
+//   },
+//   });
+// }
 
 export function saveDelegation(walletAddress: Address, delegation: Delegation) {
   localStorage.setItem(

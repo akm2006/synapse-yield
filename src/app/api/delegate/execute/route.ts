@@ -111,16 +111,17 @@ export async function POST(request: NextRequest) {
           }),
         };
         break;
+     
       case 'stake-kintsu':
-       execution = {
-  target: CONTRACTS.KINTSU,
-  value: amountBigInt, // must match msg.value
-  callData: encodeFunctionData({
-    abi: kintsuAbi,
-    functionName: 'deposit',
-    args: [0n, userAddress as Address], // assets param can be 0, msg.value is used
-  }),
-};
+        execution = {
+          target: CONTRACTS.KINTSU,
+          value: amountBigInt,
+          callData: encodeFunctionData({
+            abi: kintsuAbi,
+            functionName: 'deposit',
+            args: [amountBigInt, userAddress as Address], // Pass the actual amount
+          }),
+        };
         break;
       case 'unstake-kintsu':
         // Implementation for unstaking via swap would go here
