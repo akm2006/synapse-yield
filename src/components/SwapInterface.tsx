@@ -6,13 +6,13 @@ import { useSSEStream } from '@/hooks/useSSEStream';
 import { useTokenOperations } from '@/hooks/useTokenOperations';
 import type { Balances } from '@/hooks/useBalances';
 import { CONTRACTS } from '@/lib/contracts';
-
 interface SwapInterfaceProps {
   smartAccountAddress: Address | null;
   balances: Balances;
-  onLog: (msg: string) => void;
+  onLog: (msg: string) => void;  
   disabled?: boolean;
   onBalanceRefresh?: () => void;
+  delegation?: any; // Add delegation prop
 }
 
 const TOKEN_INFO = {
@@ -35,7 +35,8 @@ export default function SwapInterface({
   balances,
   onLog,
   disabled = false,
-  onBalanceRefresh
+  onBalanceRefresh,
+  delegation // Add to destructuring
 }: SwapInterfaceProps) {
   const [fromToken, setFromToken] = useState<TokenKey>('sMON');
   const [toToken, setToToken] = useState<TokenKey>('gMON');
@@ -82,53 +83,151 @@ export default function SwapInterface({
     return {type:'direct-swap',description:`Swap ${fromToken} to ${toToken}`,steps:[`Swap via PancakeSwap`],isOptimal:false};
   };
 
-  const executeSwap = async () => {
-    if (!swapPlan||!amount||+amount<=0||!smartAccountAddress) return onLog('[ERROR] Invalid swap parameters');
-    setIsSwapping(true);
-    const opId = generateOpId();
-    openStream(opId, onLog);
+  // Near line 70, update the executeSwap function:
+// --- Start of your changes ---
+const executeSwap = async () => {
+  if (!swapPlan || !amount || +amount <= 0 || !smartAccountAddress || !delegation) {
+    return onLog('[ERROR] Invalid swap parameters or missing delegation');
+  }
 
-    try {
-      onLog(`[ACTION] ${swapPlan.description}`);
-      let result;
-      switch(swapPlan.type) {
-        case 'stake-magma': result = await stakeMagma(amount, opId); break;
-        case 'unstake-magma': result = await unstakeMagma(amount, opId); break;
-        case 'stake-kintsu': result = await stakeKintsu(amount, smartAccountAddress, opId); break;
-        case 'unstake-kintsu': {
-          const inWei=BigInt(Math.floor(+amount*1e18)).toString();
-          const minOut=(BigInt(inWei)*99n/100n).toString();
-          result=await unstakeKintsu(inWei,minOut,2500,smartAccountAddress,true,1800,opId);
-          break;
-        }
-        case 'direct-swap': {
-          if(fromToken==='MON'&&toToken==='WMON') result=await wrapMon(amount,opId);
-          else if(fromToken==='WMON'&&toToken==='MON') result=await unwrapWmon(amount,opId);
-          else {
-            const fromAddr=TOKEN_ADDRESSES[fromToken],toAddr=TOKEN_ADDRESSES[toToken];
-            const inWei=BigInt(Math.floor(+amount*1e18)).toString();
-            const minOut=(BigInt(inWei)*95n/100n).toString();
-            const fee=getOptimalFee(fromToken,toToken);
-            onLog(`[INFO] Fee ${fee===500?'0.05%':'0.25%'}`);
-            result=await directSwap(fromAddr,toAddr,inWei,minOut,fee,smartAccountAddress,1800,opId);
-          }
-          break;
-        }
-        default: throw new Error(`Unknown type ${swapPlan.type}`);
+  setIsSwapping(true);
+  const opId = generateOpId();
+  openStream(opId, onLog);
+
+  try {
+    onLog(`[ACTION] ${swapPlan.description}`);
+    let result;
+
+    switch (swapPlan.type) {
+      case 'stake-magma': 
+        result = await fetch('/api/delegate/execute', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userAddress: smartAccountAddress,
+            operation: 'stake-magma',
+            amount,
+            delegation
+          }),
+        }).then(r => r.json());
+        break;
+        
+      case 'unstake-magma': 
+        result = await fetch('/api/delegate/execute', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userAddress: smartAccountAddress,
+            operation: 'unstake-magma',
+            amount,
+            delegation
+          }),
+        }).then(r => r.json());
+        break;
+        
+      case 'stake-kintsu': 
+        result = await fetch('/api/delegate/execute', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userAddress: smartAccountAddress,
+            operation: 'stake-kintsu',
+            amount,
+            receiver: smartAccountAddress,
+            delegation
+          }),
+        }).then(r => r.json());
+        break;
+        
+      case 'unstake-kintsu': {
+        const inWei = BigInt(Math.floor(+amount * 1e18)).toString();
+        const minOut = (BigInt(inWei) * 99n / 100n).toString();
+        result = await fetch('/api/delegate/execute', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userAddress: smartAccountAddress,
+            operation: 'kintsu-instant-unstake',
+            amountIn: inWei,
+            minOut,
+            fee: 2500,
+            recipient: smartAccountAddress,
+            unwrap: true,
+            delegation
+          }),
+        }).then(r => r.json());
+        break;
       }
-      if(!result.ok) throw new Error(result.error);
-      if(result.userOpHash) onLog(`[UO] ${result.userOpHash}`);
-      if(result.transactionHash) onLog(`[TX] ${result.transactionHash}`);
-      if(result.blockNumber) onLog(`[TX] block ${result.blockNumber}`);
-      if(result.batchedCalls) onLog(`[INFO] Batched ${result.batchedCalls}`);
-      onLog(`[SUCCESS] ${swapPlan.description}`);
-      setTimeout(()=>onBalanceRefresh?.(),2000);
-    } catch(e:any){
-      onLog(`[ERROR] ${swapPlan.description} failed: ${e.message||e}`);
-    } finally {
-      setIsSwapping(false);
+      
+      case 'direct-swap': {
+        if (fromToken === 'MON' && toToken === 'WMON') {
+          result = await fetch('/api/delegate/execute', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              userAddress: smartAccountAddress,
+              operation: 'wrap-mon',
+              amount,
+              delegation
+            }),
+          }).then(r => r.json());
+        } else if (fromToken === 'WMON' && toToken === 'MON') {
+          result = await fetch('/api/delegate/execute', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              userAddress: smartAccountAddress,
+              operation: 'unwrap-wmon',
+              amount,
+              delegation
+            }),
+          }).then(r => r.json());
+        } else {
+          const fromAddr = TOKEN_ADDRESSES[fromToken];
+          const toAddr = TOKEN_ADDRESSES[toToken];
+          const inWei = BigInt(Math.floor(+amount * 1e18)).toString();
+          const minOut = (BigInt(inWei) * 95n / 100n).toString();
+          const fee = getOptimalFee(fromToken, toToken);
+          
+          result = await fetch('/api/delegate/execute', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              userAddress: smartAccountAddress,
+              operation: 'direct-swap',
+              fromToken: fromAddr,
+              toToken: toAddr,
+              amountIn: inWei,
+              minOut,
+              fee,
+              recipient: smartAccountAddress,
+              deadline: Math.floor(Date.now() / 1000) + 1800,
+              delegation
+            }),
+          }).then(r => r.json());
+        }
+        break;
+      }
+      
+      default: 
+        throw new Error(`Unknown type ${swapPlan.type}`);
     }
-  };
+
+    if (!result.success) throw new Error(result.error);
+    if (result.userOpHash) onLog(`[UO] ${result.userOpHash}`);
+    if (result.txHash) onLog(`[TX] ${result.txHash}`);
+    if (result.batchedCalls) onLog(`[INFO] Batched ${result.batchedCalls} calls`);
+    
+    onLog(`[SUCCESS] ${swapPlan.description}`);
+    setTimeout(() => onBalanceRefresh?.(), 2000);
+  } catch (e: any) {
+    onLog(`[ERROR] ${swapPlan.description} failed: ${e.message || e}`);
+  } finally {
+    setIsSwapping(false);
+  }
+};
+// --- End of your changes ---
+
 
   const getMaxBalance = () => {
     switch(fromToken){

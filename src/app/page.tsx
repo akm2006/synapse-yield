@@ -15,8 +15,8 @@ import { useTransactionLogger } from '@/components/TransactionLogger';
 import BalanceDisplay from '@/components/BalanceDisplay';
 import SwapInterface from '@/components/SwapInterface';
 import TransactionLogger from '@/components/TransactionLogger';
-import SmartAccountManager from './components/SmartAccountManager';
-import TokenTransfer from './components/TokenTransfer';
+import SmartAccountManager from '../components/SmartAccountManager';
+import TokenTransfer from '../components/TokenTransfer';
 import { CONTRACTS } from '@/lib/contracts';
 
 export default function Home() {
@@ -193,38 +193,61 @@ export default function Home() {
     }
   };
 
-  const handleUnstakeKintsu = async (amount: string) => {
-    if (!smartAccountAddress) return addLog('[ERROR] Smart Account not ready');
+// Around line 180, replace the existing handleUnstakeKintsu function:
+// --- Start of your changes ---
+const handleUnstakeKintsu = async (amount: string) => {
+  if (!smartAccountAddress || !delegation) {
+    return addLog('[ERROR] Smart Account or delegation not ready');
+  }
 
-    try {
-      const amountInWei = BigInt(Math.floor(+amount * 1e18)).toString();
-      const minOutWei = (BigInt(amountInWei) * 99n) / 100n + '';
-      const fee = 2500;
-      const opId = generateOpId();
-      openStream(opId, addLog);
+  if (!amount || parseFloat(amount) <= 0) {
+    return addLog('[ERROR] Please enter a valid amount');
+  }
 
-      addLog(`[ACTION] Kintsu Instant Unstake via Pancake (Smart Account): ${amount}`);
-      const result = await unstakeKintsu(
-        amountInWei,
-        minOutWei,
-        fee,
-        smartAccountAddress,
-        true,
-        1800,
-        opId
-      );
+  const opId = generateOpId();
+  openStream(opId, addLog);
+  setLoading(true);
 
-      if (!result.ok) return addLog(`[ERROR] Unstake Kintsu: ${result.error}`);
-      if (result.userOpHash) addLog(`[UO] userOpHash: ${result.userOpHash}`);
-      if (result.transactionHash) addLog(`[TX] transactionHash: ${result.transactionHash}`);
-      if (result.blockNumber) addLog(`[TX] included at block: ${result.blockNumber}`);
-      if (result.batchedCalls) addLog(`[INFO] Batched ${result.batchedCalls} calls in one UserOperation`);
+  try {
+    addLog(`[ACTION] Kintsu Instant Unstake via Delegation: ${amount} sMON`);
+    
+    const amountInWei = BigInt(Math.floor(+amount * 1e18)).toString();
+    const minOutWei = (BigInt(amountInWei) * 99n / 100n).toString();
 
-      await fetchBalances(false);
-    } catch (err: any) {
-      addLog(`[ERROR] Unstake Kintsu flow: ${err.message || err}`);
+    const response = await fetch('/api/delegate/execute', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        userAddress: smartAccountAddress,
+        operation: 'kintsu-instant-unstake',
+        amountIn: amountInWei,
+        minOut: minOutWei,
+        fee: 2500,
+        recipient: smartAccountAddress,
+        unwrap: true,
+        delegation
+      }),
+    });
+
+    const result = await response.json();
+    
+    if (!result.success) {
+      return addLog(`[ERROR] unstakeKintsu: ${result.error}`);
     }
-  };
+
+    if (result.userOpHash) addLog(`[UO] userOpHash: ${result.userOpHash}`);
+    if (result.txHash) addLog(`[TX] transactionHash: ${result.txHash}`);
+    if (result.batchedCalls) addLog(`[INFO] Batched ${result.batchedCalls} calls in one UserOperation`);
+    
+    await fetchBalances(false);
+    addLog('[SUCCESS] Kintsu instant unstaking completed via delegation!');
+  } catch (err: any) {
+    addLog(`[ERROR] Unstake Kintsu error: ${err.message || err}`);
+  } finally {
+    setLoading(false);
+  }
+};
+// --- End of your changes ---
 
   const handleRequestUnlock = async (amount: string) => {
     if (!smartAccountAddress) return addLog('[ERROR] Smart Account not ready');
@@ -507,13 +530,14 @@ export default function Home() {
 
           {/* Middle Column - Swap Interface */}
           <div className="space-y-6">
-            <SwapInterface
-              smartAccountAddress={smartAccountAddress}
-              balances={balances}
-              onLog={addLog}
-              disabled={loading}
-              onBalanceRefresh={() => fetchBalances(false)}
-            />
+          <SwapInterface
+  smartAccountAddress={smartAccountAddress}
+  balances={balances}
+  onLog={addLog}
+  disabled={loading}
+  onBalanceRefresh={() => fetchBalances(false)}
+  delegation={delegation} // Add this line
+/>
           </div>
 
           {/* Right Column - Staking Actions and Logs */}

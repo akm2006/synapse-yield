@@ -7,6 +7,7 @@ import {
 import { Address, Hex } from "viem";
 import { CONTRACTS } from "@/lib/contracts";
 
+// --- Start of your changes ---
 export function createStakingDelegation(
   delegator: MetaMaskSmartAccount,
   delegate: Address,
@@ -16,41 +17,52 @@ export function createStakingDelegation(
     from: delegator.address,
     to: delegate,
     environment: delegator.environment,
-        scope: {
+    scope: {
       type: "functionCall",
       targets: [
         CONTRACTS.MAGMA_STAKE,
-        CONTRACTS.KINTSU,CONTRACTS.PERMIT2,
-        // Add other contract addresses here if needed
+        CONTRACTS.KINTSU,
+        CONTRACTS.PERMIT2,
+        CONTRACTS.PANCAKESWAP, // Universal Router
+        CONTRACTS.WMON,
+        CONTRACTS.GMON,
       ],
-      selectors: [ // MAGMA staking functions
+      selectors: [
+        // MAGMA staking functions (matching magmaAbi)
         "depositMon()",
         "depositMon(uint256)",
         "withdrawMon(uint256)",
-        // KINTSU functions
-        "deposit(uint96,address)",
-        "requestUnlock(uint96)",
-        "redeem(uint256,address)",
-        "balanceOf(address)",], // "*" allows all functions of these contracts
+        
+        // KINTSU functions (matching kintsuAbi) 
+        "deposit(uint96,address)", // This matches your ABI
+        "requestUnlock(uint96)",   // This matches your ABI
+        "redeem(uint256,address)", // This matches your ABI
+        "balanceOf(address)",      // This matches your ABI
+        
+        // ERC20 functions (matching erc20Abi)
+        "balanceOf(address)",
+        "approve(address,uint256)",
+        "transfer(address,uint256)",
+        "allowance(address,address)",
+        
+        // Permit2 functions (matching permit2Abi)
+        "allowance(address,address,address)", // This matches your ABI
+        "approve(address,address,uint160,uint48)", // This matches your ABI
+        
+        // Universal Router functions
+        "execute(bytes,bytes[],uint256)",
+        
+        // WMON functions (standard WETH ABI)
+        "deposit()",
+        "withdraw(uint256)",
+        
+        // Additional ERC20 function that might be needed
+        "transferFrom(address,address,uint256)",
+      ],
     },
   });
 }
-// Example: unlimited native token transfer for testing
-// export function createTransferDelegation(
-//   delegator: MetaMaskSmartAccount,
-//   delegate: Address,
-//   maxAmount?: bigint
-// ): Delegation {
-//   return createDelegation({
-//   from: delegator.address,
-//   to: delegate,
-//   environment: delegator.environment,
-//   scope: {
-//     type: "nativeTokenTransferAmount",
-//     maxAmount: 2n ** 256n - 1n, // unlimited for testing
-//   },
-//   });
-// }
+// --- End of your changes ---
 
 export function saveDelegation(walletAddress: Address, delegation: Delegation) {
   localStorage.setItem(
@@ -64,7 +76,6 @@ export function saveDelegation(walletAddress: Address, delegation: Delegation) {
 export function loadDelegation(walletAddress: Address): Delegation | null {
   const stored = localStorage.getItem(`delegation_${walletAddress.toLowerCase()}`);
   if (!stored) return null;
-
   return JSON.parse(stored, (key, value) => {
     if (key === 'maxValue') return BigInt(value);
     return value;
