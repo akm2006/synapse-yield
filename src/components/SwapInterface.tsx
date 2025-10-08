@@ -213,10 +213,29 @@ const executeSwap = async () => {
         throw new Error(`Unknown type ${swapPlan.type}`);
     }
 
-    if (!result.success) throw new Error(result.error);
-    if (result.userOpHash) onLog(`[UO] ${result.userOpHash}`);
-    if (result.txHash) onLog(`[TX] ${result.txHash}`);
-    if (result.batchedCalls) onLog(`[INFO] Batched ${result.batchedCalls} calls`);
+  if (!result.success) throw new Error(result.error);
+
+const ops = result.operations ?? [];
+
+if (ops.length === 0) {
+  onLog(`[WARN] No operations returned`);
+} else if (ops.length === 1) {
+  // Single operation → behave like old logic
+  const op = ops[0];
+  if (op.userOpHash) onLog(`[UO] ${op.userOpHash}`);
+  if (op.txHash) onLog(`[TX] ${op.txHash}`);
+} else {
+  // Multiple operations → log all
+  onLog(`[INFO] Batched ${ops.length} operations`);
+  ops.forEach(
+    (op: { userOpHash?: string; txHash?: string; target?: string }, i: number) => {
+      onLog(`[OP-${i + 1}] target: ${op.target}, userOpHash: ${op.userOpHash}, txHash: ${op.txHash}`);
+    }
+  );
+
+
+}
+
     
     onLog(`[SUCCESS] ${swapPlan.description}`);
     setTimeout(() => onBalanceRefresh?.(), 2000);

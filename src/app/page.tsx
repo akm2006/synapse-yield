@@ -18,7 +18,7 @@ import TransactionLogger from '@/components/TransactionLogger';
 import SmartAccountManager from '../components/SmartAccountManager';
 import TokenTransfer from '../components/TokenTransfer';
 import { CONTRACTS } from '@/lib/contracts';
-
+import Permit2Manager from '@/components/PermitManager'
 export default function Home() {
   // Use shared hooks
   const { smartAccountAddress, setSmartAccountReady } = useSmartAccount();
@@ -88,9 +88,12 @@ export default function Home() {
       if (!result.success) {
         return addLog(`[ERROR] stakeMagma: ${result.error}`);
       }
+const lastOp = result.operations?.[result.operations.length - 1];
 
-      if (result.userOpHash) addLog(`[UO] userOpHash: ${result.userOpHash}`);
-      if (result.txHash) addLog(`[TX] transactionHash: ${result.txHash}`);
+if (lastOp?.userOpHash) addLog(`[UO] userOpHash: ${lastOp.userOpHash}`);
+if (lastOp?.txHash) addLog(`[TX] transactionHash: ${lastOp.txHash}`);
+
+
 
       await fetchBalances(false);
       addLog('[SUCCESS] Magma staking completed via delegation!');
@@ -131,12 +134,15 @@ export default function Home() {
 
       const result = await response.json();
 
-      if (!result.success) {
-        return addLog(`[ERROR] unstakeMagma: ${result.error}`);
-      }
+    if (!result.success) {
+  return addLog(`[ERROR] unstakeMagma: ${result.error}`);
+}
 
-      if (result.userOpHash) addLog(`[UO] userOpHash: ${result.userOpHash}`);
-      if (result.txHash) addLog(`[TX] transactionHash: ${result.txHash}`);
+// Extract the last operation (main tx usually comes last)
+const lastOp = result.operations?.[result.operations.length - 1];
+
+if (lastOp?.userOpHash) addLog(`[UO] userOpHash: ${lastOp.userOpHash}`);
+if (lastOp?.txHash) addLog(`[TX] transactionHash: ${lastOp.txHash}`);
 
       await fetchBalances(false);
       addLog('[SUCCESS] Magma unstaking completed via delegation!');
@@ -181,8 +187,12 @@ export default function Home() {
         return addLog(`[ERROR] stakeKintsu: ${result.error}`);
       }
 
-      if (result.userOpHash) addLog(`[UO] userOpHash: ${result.userOpHash}`);
-      if (result.txHash) addLog(`[TX] transactionHash: ${result.txHash}`);
+     const lastOp = result.operations?.[result.operations.length - 1];
+
+if (lastOp?.userOpHash) addLog(`[UO] userOpHash: ${lastOp.userOpHash}`);
+if (lastOp?.txHash) addLog(`[TX] transactionHash: ${lastOp.txHash}`);
+
+
 
       await fetchBalances(false);
       addLog('[SUCCESS] Kintsu staking completed via delegation!');
@@ -235,9 +245,12 @@ const handleUnstakeKintsu = async (amount: string) => {
       return addLog(`[ERROR] unstakeKintsu: ${result.error}`);
     }
 
-    if (result.userOpHash) addLog(`[UO] userOpHash: ${result.userOpHash}`);
-    if (result.txHash) addLog(`[TX] transactionHash: ${result.txHash}`);
-    if (result.batchedCalls) addLog(`[INFO] Batched ${result.batchedCalls} calls in one UserOperation`);
+
+// (optional) Log all ops for debugging
+if (result.operations?.length > 1) {
+ result.operations.forEach((op: { userOpHash?: string; txHash?: string; target?: string }, i: number) => {
+  addLog(`[OP-${i + 1}] target: ${op.target}, userOpHash: ${op.userOpHash}, txHash: ${op.txHash}`);
+}); }
     
     await fetchBalances(false);
     addLog('[SUCCESS] Kintsu instant unstaking completed via delegation!');
@@ -431,7 +444,15 @@ const handleUnstakeKintsu = async (amount: string) => {
         }}
         onLog={addLog}
       />
-
+{smartAccountAddress && delegation && (
+  <Permit2Manager
+    token={CONTRACTS.KINTSU}
+    spender={CONTRACTS.PANCAKESWAP}
+    amount="1000"
+    userAddress={smartAccountAddress}
+    delegation={delegation}
+  />
+)}
       {/* Delegation Setup - Show when smart account exists but no delegation */}
       {smartAccountAddress && !delegation && (
         <DelegationManager

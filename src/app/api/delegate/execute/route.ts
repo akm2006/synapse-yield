@@ -1,3 +1,4 @@
+// src/app/api/delegate/execute/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { privateKeyToAccount } from 'viem/accounts';
 import { Hex, Address, parseUnits, encodeFunctionData, encodeAbiParameters } from 'viem';
@@ -38,7 +39,7 @@ const pimlicoClient = createPimlicoClient({
   transport: http(`https://api.pimlico.io/v2/${chainId}/rpc?apikey=${PIMLICO_API_KEY}`),
 });
 
-// --- Start of your changes ---
+// --- Start of refactor ---
 // Universal Router ABI for swaps
 const universalRouterAbi = [
   {
@@ -85,7 +86,7 @@ function encodeV3SwapExactInInput(params: {
   ) as `0x${string}`;
 }
 
-// Helper to ensure token allowances
+// Helper to ensure token allowances - unchanged (returns call objects)
 async function ensureTokenAllowances(token: Address, amountNeeded: bigint, smartAccountAddress: Address) {
   const requiredCalls: Array<{ target: Address; value: bigint; callData: `0x${string}` }> = [];
   
@@ -101,12 +102,12 @@ async function ensureTokenAllowances(token: Address, amountNeeded: bigint, smart
     const erc20CallData = encodeFunctionData({
       abi: erc20Abi,
       functionName: 'approve',
-      args: [CONTRACTS.PERMIT2, 2n ** 256n - 1n], // Max approval
+      args: [CONTRACTS.PERMIT2, 2n ** 256n - 1n],
     });
     requiredCalls.push({ target: token, value: 0n, callData: erc20CallData });
   }
 
-  // Check Permit2 allowance to Universal Router
+  // Check Permit2 allowance to Universal Router / router-like spender
   try {
     const [pAmount, pExpire] = await publicClient.readContract({
       address: CONTRACTS.PERMIT2,
@@ -141,6 +142,52 @@ async function ensureTokenAllowances(token: Address, amountNeeded: bigint, smart
   return requiredCalls;
 }
 
+// A helper to send one execution (one call) using delegation redeemDelegations.
+// This packages a single execution into the expected structure and sends it via bundler.
+async function sendRedeemExecution({
+  execution,
+  delegateSA,
+  parsedDelegation,
+  bundlerClient,
+  paymasterClient,
+  pimlicoClient,
+}: {
+  execution: { target: Address; value: bigint; callData: `0x${string}` };
+  delegateSA: any;
+  parsedDelegation: Delegation;
+  bundlerClient: ReturnType<typeof createBundlerClient>;
+  paymasterClient: ReturnType<typeof createPaymasterClient>;
+  pimlicoClient: ReturnType<typeof createPimlicoClient>;
+}) {
+  // Build redeem data with a single execution wrapped as [[execution]]
+  const redeemData = DelegationManager.encode.redeemDelegations({
+    delegations: [[parsedDelegation]],
+    modes: [ExecutionMode.SingleDefault],
+    executions: [[execution]],
+  });
+
+  // get gas price (pimlico)
+  const { fast: fee } = await pimlicoClient.getUserOperationGasPrice();
+
+  const userOpHash = await bundlerClient.sendUserOperation({
+    account: delegateSA,
+    calls: [{
+      to: delegateSA.address,
+      data: redeemData,
+      value: execution.value,
+    }],
+    ...fee,
+    paymaster: paymasterClient,
+  });
+
+  // wait for receipt
+  const { receipt } = await bundlerClient.waitForUserOperationReceipt({
+    hash: userOpHash,
+  });
+
+  return { userOpHash, txHash: receipt.transactionHash, receipt };
+}
+
 export async function POST(request: NextRequest) {
   let body: any;
   
@@ -155,19 +202,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Validate operation type
     const validOperations = [
       'stake-magma', 'unstake-magma', 'stake-kintsu', 'unstake-kintsu',
       'magma-withdraw', 'kintsu-deposit', 'kintsu-instant-unstake', 
       'kintsu-request-unlock', 'kintsu-redeem', 'direct-swap', 
-      'wrap-mon', 'unwrap-wmon'
+      'wrap-mon', 'unwrap-wmon','permit2-approve' ,'permit2-approve-step1' , 'permit2-approve-step2'
     ];
 
     if (!validOperations.includes(operation)) {
-      return NextResponse.json(
-        { error: 'Invalid operation' },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: 'Invalid operation' }, { status: 400 });
     }
 
     // Create delegate account
@@ -180,7 +223,7 @@ export async function POST(request: NextRequest) {
       signer: { account },
     });
 
-    // Parse delegation
+    // Parse delegation (convert maxValue if present)
     const parsedDelegation: Delegation = {
       ...delegation,
       caveat: delegation.caveat ? {
@@ -189,261 +232,334 @@ export async function POST(request: NextRequest) {
       } : delegation.caveat,
     };
 
-    // Create executions based on operation
-    let executions: Array<{ target: Address; value: bigint; callData: `0x${string}` }> = [];
+    // Build calls but separate "approval" calls from "main" executions to run them individually
+    const approvalCalls: Array<{ target: Address; value: bigint; callData: `0x${string}` }> = [];
+    const mainExecutions: Array<{ target: Address; value: bigint; callData: `0x${string}` }> = [];
 
-   // Replace the problematic switch statement section (around lines 160-240):
-// --- Start of your changes ---
-switch (operation) {
-  case 'stake-magma': {
-    const amountBigInt = parseUnits(amount, 18);
-    executions.push({
-      target: CONTRACTS.MAGMA_STAKE,
-      value: amountBigInt,
-      callData: encodeFunctionData({
-        abi: magmaAbi,
-        functionName: 'depositMon',
-        args: body.referralId ? [BigInt(body.referralId)] : [],
-      }),
-    });
-    break;
-  }
+    // Build operation-specific calls
+    switch (operation) {
+      case 'stake-magma': {
+        const amountBigInt = parseUnits(amount, 18);
+        mainExecutions.push({
+          target: CONTRACTS.MAGMA_STAKE,
+          value: amountBigInt,
+          callData: encodeFunctionData({
+            abi: magmaAbi,
+            functionName: 'depositMon',
+            args: body.referralId ? [BigInt(body.referralId)] : [],
+          }),
+        });
+        break;
+      }
 
-  case 'unstake-magma': {
-    const amountBigInt = parseUnits(amount, 18);
-    executions.push({
-      target: CONTRACTS.MAGMA_STAKE,
-      value: 0n,
-      callData: encodeFunctionData({
-        abi: magmaAbi,
-        functionName: 'withdrawMon',
-        args: [amountBigInt],
-      }),
-    });
-    break;
-  }
+      case 'permit2-approve-step1': {
+        const token: Address = body.token;
+        const amountBigInt = BigInt(body.amount);
+        const erc20CallData = encodeFunctionData({
+          abi: erc20Abi,
+          functionName: 'approve',
+          args: [CONTRACTS.PERMIT2, amountBigInt],
+        });
+        mainExecutions.push({ target: token, value: 0n, callData: erc20CallData });
+        break;
+      }
 
-  case 'stake-kintsu': {
-    const amountBigInt = parseUnits(amount, 18);
-    executions.push({
-      target: CONTRACTS.KINTSU,
-      value: amountBigInt,
-      callData: encodeFunctionData({
-        abi: kintsuAbi,
-        functionName: 'deposit',
-        args: [amountBigInt, userAddress as Address],
-      }),
-    });
-    break;
-  }
+      case 'permit2-approve-step2': {
+        const token: Address = body.token;
+        const spender: Address = body.spender;
+        const amountBigInt = BigInt(body.amount);
+        const expiration = Math.floor(Date.now() / 1000) + 365 * 24 * 60 * 60;
+        const permit2CallData = encodeFunctionData({
+          abi: permit2Abi,
+          functionName: 'approve',
+          args: [token, spender, (2n ** 160n) - 1n, expiration],
+        });
+        mainExecutions.push({ target: CONTRACTS.PERMIT2, value: 0n, callData: permit2CallData });
+        break;
+      }
 
-  case 'magma-withdraw': {
-    const amountBigInt = parseUnits(amount, 18);
-    executions.push({
-      target: CONTRACTS.MAGMA_STAKE,
-      value: 0n,
-      callData: encodeFunctionData({
-        abi: magmaAbi,
-        functionName: 'withdrawMon',
-        args: [amountBigInt],
-      }),
-    });
-    break;
-  }
+      case 'permit2-approve': {
+        const token: Address = body.token;
+        const spender: Address = body.spender;
+        const amountBigInt = BigInt(body.amount);
 
-  case 'kintsu-deposit': {
-    const amountBigInt = parseUnits(amount, 18);
-    executions.push({
-      target: CONTRACTS.KINTSU,
-      value: amountBigInt,
-      callData: encodeFunctionData({
-        abi: kintsuAbi,
-        functionName: 'deposit',
-        args: [amountBigInt, body.receiver as Address],
-      }),
-    });
-    break;
-  }
+        // Split into two sequential operations: ERC20->Permit2, then Permit2->spender
+        const erc20CallData = encodeFunctionData({
+          abi: erc20Abi,
+          functionName: 'approve',
+          args: [CONTRACTS.PERMIT2, amountBigInt],
+        });
+        approvalCalls.push({ target: token, value: 0n, callData: erc20CallData });
 
-  case 'kintsu-request-unlock': {
-    const amountBigInt = parseUnits(amount, 18);
-    executions.push({
-      target: CONTRACTS.KINTSU,
-      value: 0n,
-      callData: encodeFunctionData({
-        abi: kintsuAbi,
-        functionName: 'requestUnlock',
-        args: [amountBigInt],
-      }),
-    });
-    break;
-  }
+        const expiration = Math.floor(Date.now() / 1000) + 365 * 24 * 60 * 60;
+        const permit2CallData = encodeFunctionData({
+          abi: permit2Abi,
+          functionName: 'approve',
+          args: [token, spender, amountBigInt, expiration],
+        });
+        mainExecutions.push({ target: CONTRACTS.PERMIT2, value: 0n, callData: permit2CallData });
+        break;
+      }
 
-  case 'kintsu-redeem': {
-    executions.push({
-      target: CONTRACTS.KINTSU,
-      value: 0n,
-      callData: encodeFunctionData({
-        abi: kintsuAbi,
-        functionName: 'redeem',
-        args: [BigInt(body.unlockIndex), body.receiver as Address],
-      }),
-    });
-    break;
-  }
+      case 'unstake-magma': {
+        const amountBigInt = parseUnits(amount, 18);
+        mainExecutions.push({
+          target: CONTRACTS.MAGMA_STAKE,
+          value: 0n,
+          callData: encodeFunctionData({
+            abi: magmaAbi,
+            functionName: 'withdrawMon',
+            args: [amountBigInt],
+          }),
+        });
+        break;
+      }
 
-  case 'wrap-mon': {
-    const amountBigInt = parseUnits(amount, 18);
-    executions.push({
-      target: CONTRACTS.WMON,
-      value: amountBigInt,
-      callData: encodeFunctionData({
-        abi: wmonAbi,
-        functionName: 'deposit',
-        args: [],
-      }),
-    });
-    break;
-  }
+      case 'stake-kintsu': {
+        const amountBigInt = parseUnits(amount, 18);
+        mainExecutions.push({
+          target: CONTRACTS.KINTSU,
+          value: amountBigInt,
+          callData: encodeFunctionData({
+            abi: kintsuAbi,
+            functionName: 'deposit',
+            args: [amountBigInt, userAddress as Address],
+          }),
+        });
+        break;
+      }
 
-  case 'unwrap-wmon': {
-    const amountBigInt = parseUnits(amount, 18);
-    // First ensure allowances if needed
-    const allowanceCalls = await ensureTokenAllowances(CONTRACTS.WMON, amountBigInt, userAddress as Address);
-    executions.push(...allowanceCalls);
-    
-    executions.push({
-      target: CONTRACTS.WMON,
-      value: 0n,
-      callData: encodeFunctionData({
-        abi: wmonAbi,
-        functionName: 'withdraw',
-        args: [amountBigInt],
-      }),
-    });
-    break;
-  }
+      case 'magma-withdraw': {
+        const amountBigInt = parseUnits(amount, 18);
+        mainExecutions.push({
+          target: CONTRACTS.MAGMA_STAKE,
+          value: 0n,
+          callData: encodeFunctionData({
+            abi: magmaAbi,
+            functionName: 'withdrawMon',
+            args: [amountBigInt],
+          }),
+        });
+        break;
+      }
 
-  case 'direct-swap': {
-    const { fromToken, toToken, amountIn, minOut, fee, recipient, deadline } = body;
-    const amountInBigInt = BigInt(amountIn);
-    const minOutBigInt = BigInt(minOut);
-    
-    // Ensure token allowances for swaps
-    if (fromToken !== '0x0000000000000000000000000000000000000000') {
-      const allowanceCalls = await ensureTokenAllowances(fromToken, amountInBigInt, userAddress as Address);
-      executions.push(...allowanceCalls);
+      case 'kintsu-deposit': {
+        const amountBigInt = parseUnits(amount, 18);
+        mainExecutions.push({
+          target: CONTRACTS.KINTSU,
+          value: amountBigInt,
+          callData: encodeFunctionData({
+            abi: kintsuAbi,
+            functionName: 'deposit',
+            args: [amountBigInt, body.receiver as Address],
+          }),
+        });
+        break;
+      }
+
+      case 'kintsu-request-unlock': {
+        const amountBigInt = parseUnits(amount, 18);
+        mainExecutions.push({
+          target: CONTRACTS.KINTSU,
+          value: 0n,
+          callData: encodeFunctionData({
+            abi: kintsuAbi,
+            functionName: 'requestUnlock',
+            args: [amountBigInt],
+          }),
+        });
+        break;
+      }
+
+      case 'kintsu-redeem': {
+        mainExecutions.push({
+          target: CONTRACTS.KINTSU,
+          value: 0n,
+          callData: encodeFunctionData({
+            abi: kintsuAbi,
+            functionName: 'redeem',
+            args: [BigInt(body.unlockIndex), body.receiver as Address],
+          }),
+        });
+        break;
+      }
+
+      case 'wrap-mon': {
+        const amountBigInt = parseUnits(amount, 18);
+        mainExecutions.push({
+          target: CONTRACTS.WMON,
+          value: amountBigInt,
+          callData: encodeFunctionData({
+            abi: wmonAbi,
+            functionName: 'deposit',
+            args: [],
+          }),
+        });
+        break;
+      }
+
+      case 'unwrap-wmon': {
+        const amountBigInt = parseUnits(amount, 18);
+        mainExecutions.push({
+          target: CONTRACTS.WMON,
+          value: 0n,
+          callData: encodeFunctionData({
+            abi: wmonAbi,
+            functionName: 'withdraw',
+            args: [amountBigInt],
+          }),
+        });
+        break;
+      }
+
+      case 'direct-swap': {
+        const { fromToken, toToken, amountIn, minOut, fee, recipient, deadline } = body;
+        const amountInBigInt = BigInt(amountIn);
+        const minOutBigInt = BigInt(minOut);
+
+        // get allowance calls separately (do not push into a single batch)
+        if (fromToken !== '0x0000000000000000000000000000000000000000') {
+          const allowanceCalls = await ensureTokenAllowances(fromToken, amountInBigInt, userAddress as Address);
+          approvalCalls.push(...allowanceCalls);
+        }
+
+        // Build swap execution
+        const path = encodeV3Path(fromToken, toToken, fee);
+        const commands = '0x00' as `0x${string}`; // V3_SWAP_EXACT_IN
+        const inputSwap = encodeV3SwapExactInInput({
+          recipient: recipient as Address,
+          amountIn: amountInBigInt,
+          amountOutMin: minOutBigInt,
+          path,
+          payerIsUser: true,
+        });
+
+        const swapCallData = encodeFunctionData({
+          abi: universalRouterAbi,
+          functionName: 'execute',
+          args: [commands, [inputSwap], BigInt(deadline)],
+        });
+
+        mainExecutions.push({
+          target: CONTRACTS.PANCAKESWAP,
+          value: fromToken === '0x0000000000000000000000000000000000000000' ? amountInBigInt : 0n,
+          callData: swapCallData,
+        });
+
+        break;
+      }
+
+      case 'kintsu-instant-unstake': {
+        const { amountIn, minOut, fee, recipient, unwrap } = body;
+        const amountInBigInt = BigInt(amountIn);
+        const minOutBigInt = BigInt(minOut);
+
+        // collect allowance calls separately
+        const allowanceCalls = await ensureTokenAllowances(CONTRACTS.KINTSU, amountInBigInt, userAddress as Address);
+        approvalCalls.push(...allowanceCalls);
+
+        // Build swap sMON -> WMON via PancakeSwap
+        const path = encodeV3Path(CONTRACTS.KINTSU, CONTRACTS.WMON, fee || 2500);
+        const commands = '0x00' as `0x${string}`; // V3_SWAP_EXACT_IN
+        const inputSwap = encodeV3SwapExactInInput({
+          recipient: userAddress as Address,
+          amountIn: amountInBigInt,
+          amountOutMin: minOutBigInt,
+          path,
+          payerIsUser: true,
+        });
+
+        const swapCallData = encodeFunctionData({
+          abi: universalRouterAbi,
+          functionName: 'execute',
+          args: [commands, [inputSwap], BigInt(Math.floor(Date.now() / 1000) + 1800)],
+        });
+
+        mainExecutions.push({
+          target: CONTRACTS.PANCAKESWAP,
+          value: 0n,
+          callData: swapCallData,
+        });
+
+        // Add unwrap WMON -> MON as a separate execution if requested
+        if (unwrap) {
+          const withdrawCallData = encodeFunctionData({
+            abi: wmonAbi,
+            functionName: 'withdraw',
+            args: [minOutBigInt],
+          });
+          mainExecutions.push({
+            target: CONTRACTS.WMON,
+            value: 0n,
+            callData: withdrawCallData,
+          });
+        }
+
+        break;
+      }
+
+      default:
+        throw new Error(`Invalid operation: ${operation}`);
     }
 
-    // Build swap execution
-    const path = encodeV3Path(fromToken, toToken, fee);
-    const commands = '0x00' as `0x${string}`; // V3_SWAP_EXACT_IN
-    const inputSwap = encodeV3SwapExactInInput({
-      recipient: recipient as Address,
-      amountIn: amountInBigInt,
-      amountOutMin: minOutBigInt,
-      path,
-      payerIsUser: true,
-    });
+    // Log diagnostics
+    console.log('Approval calls count:', approvalCalls.length);
+    console.log('Main executions count:', mainExecutions.length);
 
-    const swapCallData = encodeFunctionData({
-      abi: universalRouterAbi,
-      functionName: 'execute',
-      args: [commands, [inputSwap], BigInt(deadline)],
-    });
+    // Execute approval calls first (each separately) then main calls individually
+    const opResults: Array<{ userOpHash: string; txHash: string | undefined; receipt: any; target: Address }> = [];
 
-    executions.push({
-      target: CONTRACTS.PANCAKESWAP,
-      value: fromToken === '0x0000000000000000000000000000000000000000' ? amountInBigInt : 0n,
-      callData: swapCallData,
-    });
-    break;
-  }
+    // Validate caveats / allowed targets logging for debugging
+    // try {
+    //   console.log('Delegation caveats allowed targets:', parsedDelegation.caveats?.map((c: any) => c.terms));
+    //   function decodeAllowedTargets(hex: string): string[] {
+    //     const cleanHex = hex.startsWith('0x') ? hex.slice(2) : hex;
+    //     const addresses = [];
+    //     for(let i = 0; i + 40 <= cleanHex.length; i += 40) {
+    //       addresses.push('0x' + cleanHex.slice(i, i + 40));
+    //     }
+    //     return addresses;
+    //   }
+    //   if (parsedDelegation.caveats && parsedDelegation.caveats[0]) {
+    //     console.log('Decoded Allowed Targets:', decodeAllowedTargets(parsedDelegation.caveats[0].terms));
+    //   }
+    // } catch (e) {
+    //   console.warn('Failed to decode caveats', e);
+    // }
 
-  case 'kintsu-instant-unstake': {
-    const { amountIn, minOut, fee, recipient, unwrap } = body;
-    const amountInBigInt = BigInt(amountIn);
-    const minOutBigInt = BigInt(minOut);
-    
-    // Ensure sMON allowances for swapping
-    const allowanceCalls = await ensureTokenAllowances(CONTRACTS.KINTSU, amountInBigInt, userAddress as Address);
-    executions.push(...allowanceCalls);
-
-    // Build swap sMON -> WMON via PancakeSwap
-    const path = encodeV3Path(CONTRACTS.KINTSU, CONTRACTS.WMON, fee || 2500);
-    const commands = '0x00' as `0x${string}`; // V3_SWAP_EXACT_IN
-    const inputSwap = encodeV3SwapExactInInput({
-      recipient: userAddress as Address,
-      amountIn: amountInBigInt,
-      amountOutMin: minOutBigInt,
-      path,
-      payerIsUser: true,
-    });
-
-    const swapCallData = encodeFunctionData({
-      abi: universalRouterAbi,
-      functionName: 'execute',
-      args: [commands, [inputSwap], BigInt(Math.floor(Date.now() / 1000) + 1800)],
-    });
-
-    executions.push({
-      target: CONTRACTS.PANCAKESWAP,
-      value: 0n,
-      callData: swapCallData,
-    });
-
-    // Add unwrap WMON -> MON if requested
-    if (unwrap) {
-      const withdrawCallData = encodeFunctionData({
-        abi: wmonAbi,
-        functionName: 'withdraw',
-        args: [minOutBigInt],
+    // send approvals
+    for (const appr of approvalCalls) {
+      console.log(`Sending approval to ${appr.target}`);
+      const res = await sendRedeemExecution({
+        execution: appr,
+        delegateSA,
+        parsedDelegation,
+        bundlerClient: bundlerClient as any,
+        paymasterClient: paymasterClient as any,
+        pimlicoClient: pimlicoClient as any,
       });
-      executions.push({
-        target: CONTRACTS.WMON,
-        value: 0n,
-        callData: withdrawCallData,
-      });
+      opResults.push({ ...res, target: appr.target });
     }
-    break;
-  }
 
-  default:
-    throw new Error(`Invalid operation: ${operation}`);
-}
-// --- End of your changes ---
-
-
-    // Encode delegation redemption
-    const redeemData = DelegationManager.encode.redeemDelegations({
-      delegations: [[parsedDelegation]],
-      modes: [ExecutionMode.SingleDefault],
-      executions: [executions],
-    });
-
-    // Execute transaction
-    const { fast: fee } = await pimlicoClient.getUserOperationGasPrice();
-    
-    const userOpHash = await bundlerClient.sendUserOperation({
-      account: delegateSA,
-      calls: [{
-        to: delegateSA.address,
-        data: redeemData,
-        value: executions.reduce((sum, ex) => sum + ex.value, 0n),
-      }],
-      ...fee,
-      paymaster: paymasterClient,
-    });
-
-    const { receipt } = await bundlerClient.waitForUserOperationReceipt({
-      hash: userOpHash,
-    });
+    // send main executions sequentially
+    for (const exec of mainExecutions) {
+      console.log(`Sending main execution to ${exec.target}`);
+      const res = await sendRedeemExecution({
+        execution: exec,
+        delegateSA,
+        parsedDelegation,
+        bundlerClient: bundlerClient as any,
+        paymasterClient: paymasterClient as any,
+        pimlicoClient: pimlicoClient as any,
+      });
+      opResults.push({ ...res, target: exec.target });
+    }
 
     return NextResponse.json({
       success: true,
-      txHash: receipt.transactionHash,
-      userOpHash,
-      batchedCalls: executions.length,
+      operations: opResults.map(r => ({ userOpHash: r.userOpHash, txHash: r.txHash, target: r.target })),
+      approvalsSent: approvalCalls.length,
+      mainCallsSent: mainExecutions.length,
     });
 
   } catch (error) {
@@ -454,4 +570,3 @@ switch (operation) {
     );
   }
 }
-// --- End of your changes ---
