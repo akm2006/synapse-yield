@@ -273,8 +273,6 @@ export async function POST(request: NextRequest) {
       "wrap-mon",
       "unwrap-wmon",
       "permit2-approve",
-      "permit2-approve-step1",
-      "permit2-approve-step2",
     ];
 
     if (!validOperations.includes(operation)) {
@@ -336,117 +334,8 @@ export async function POST(request: NextRequest) {
         });
         break;
       }
-// Add these cases to the existing switch statement in your execute route
 
-case "kintsu-to-magma-rebalance": {
-  const amountBigInt = parseUnits(amount, 18);
   
-  // Step 1: Swap sMON → WMON via DEX
-  const allowanceCalls = await ensureTokenAllowances(
-    CONTRACTS.KINTSU,
-    amountBigInt,
-    userAddress as Address
-  );
-  approvalCalls.push(...allowanceCalls);
-
-  const path = encodeV3Path(CONTRACTS.KINTSU, CONTRACTS.WMON, 2500);
-  const commands = "0x00" as `0x${string}`;
-  const minOut = (amountBigInt * 95n / 100n);
-  
-  const inputSwap = encodeV3SwapExactInInput({
-    recipient: userAddress as Address,
-    amountIn: amountBigInt,
-    amountOutMin: minOut,
-    path,
-    payerIsUser: true,
-  });
-
-  const swapCallData = encodeFunctionData({
-    abi: universalRouterAbi,
-    functionName: "execute",
-    args: [commands, [inputSwap], BigInt(Math.floor(Date.now() / 1000) + 1800)],
-  });
-
-  mainExecutions.push({
-    target: CONTRACTS.PANCAKESWAP,
-    value: 0n,
-    callData: swapCallData,
-  });
-
-  // Step 2: Stake WMON → gMON via Magma
-  mainExecutions.push({
-    target: CONTRACTS.MAGMA_STAKE,
-    value: minOut,
-    callData: encodeFunctionData({
-      abi: magmaAbi,
-      functionName: "depositMon",
-      args: [],
-    }),
-  });
-  break;
-}
-
-case "magma-to-kintsu-rebalance": {
-  const amountBigInt = parseUnits(amount, 18);
-  
-  // Step 1: Unstake gMON → MON via Magma
-  mainExecutions.push({
-    target: CONTRACTS.MAGMA_STAKE,
-    value: 0n,
-    callData: encodeFunctionData({
-      abi: magmaAbi,
-      functionName: "withdrawMon",
-      args: [amountBigInt],
-    }),
-  });
-
-  // Step 2: Stake MON → sMON via Kintsu
-  mainExecutions.push({
-    target: CONTRACTS.KINTSU,
-    value: amountBigInt,
-    callData: encodeFunctionData({
-      abi: kintsuAbi,
-      functionName: "deposit",
-      args: [amountBigInt, userAddress as Address],
-    }),
-  });
-  break;
-}
-
-      case "permit2-approve-step1": {
-        const token: Address = body.token;
-        const amountBigInt = BigInt(body.amount);
-        const erc20CallData = encodeFunctionData({
-          abi: erc20Abi,
-          functionName: "approve",
-          args: [CONTRACTS.PERMIT2, amountBigInt],
-        });
-        mainExecutions.push({
-          target: token,
-          value: 0n,
-          callData: erc20CallData,
-        });
-        break;
-      }
-
-      case "permit2-approve-step2": {
-        const token: Address = body.token;
-        const spender: Address = body.spender;
-        const amountBigInt = BigInt(body.amount);
-        const expiration = Math.floor(Date.now() / 1000) + 365 * 24 * 60 * 60;
-        const permit2CallData = encodeFunctionData({
-          abi: permit2Abi,
-          functionName: "approve",
-          args: [token, spender, 2n ** 160n - 1n, expiration],
-        });
-        mainExecutions.push({
-          target: CONTRACTS.PERMIT2,
-          value: 0n,
-          callData: permit2CallData,
-        });
-        break;
-      }
-
       case "permit2-approve": {
         const token: Address = body.token;
         const spender: Address = body.spender;
@@ -720,24 +609,7 @@ case "magma-to-kintsu-rebalance": {
       explorerUrl?: string | null;
     }> = [];
 
-    // Validate caveats / allowed targets logging for debugging
-    // try {
-    //   console.log('Delegation caveats allowed targets:', parsedDelegation.caveats?.map((c: any) => c.terms));
-    //   function decodeAllowedTargets(hex: string): string[] {
-    //     const cleanHex = hex.startsWith('0x') ? hex.slice(2) : hex;
-    //     const addresses = [];
-    //     for(let i = 0; i + 40 <= cleanHex.length; i += 40) {
-    //       addresses.push('0x' + cleanHex.slice(i, i + 40));
-    //     }
-    //     return addresses;
-    //   }
-    //   if (parsedDelegation.caveats && parsedDelegation.caveats[0]) {
-    //     console.log('Decoded Allowed Targets:', decodeAllowedTargets(parsedDelegation.caveats[0].terms));
-    //   }
-    // } catch (e) {
-    //   console.warn('Failed to decode caveats', e);
-    // }
-
+    
     // send approvals
     for (const appr of approvalCalls) {
       console.log(`Sending approval to ${appr.target}`);
