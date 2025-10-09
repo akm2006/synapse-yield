@@ -220,12 +220,10 @@ const ops = result.operations ?? [];
 if (ops.length === 0) {
   onLog(`[WARN] No operations returned`);
 } else if (ops.length === 1) {
-  // Single operation → behave like old logic
   const op = ops[0];
   if (op.userOpHash) onLog(`[UO] ${op.userOpHash}`);
   if (op.txHash) onLog(`[TX] ${op.txHash}`);
 } else {
-  // Multiple operations → log all
   onLog(`[INFO] Batched ${ops.length} operations`);
   ops.forEach(
     (op: { userOpHash?: string; txHash?: string; target?: string }, i: number) => {

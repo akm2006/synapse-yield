@@ -37,7 +37,35 @@ export function useTokenOperations() {
   const stakeKintsu = useCallback((amount: string, receiver: Address, opId: string) =>
     postJSON({ path: '/api/delegate/execute', body: { operation: 'stake-kintsu', amount, receiver, opId } }),
     [postJSON]);
+const executeRebalance = useCallback(async (
+  fromProtocol: 'kintsu' | 'magma',
+  toProtocol: 'kintsu' | 'magma', 
+  amount: string,
+  smartAccountAddress: Address,
+  delegation: any
+): Promise<any> => {
+  if (!smartAccountAddress || !delegation) {
+    throw new Error('Smart account and delegation required for rebalancing');
+  }
 
+  const response = await fetch('/api/delegate/execute', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      userAddress: smartAccountAddress,
+      operation: `${fromProtocol}-to-${toProtocol}-rebalance`,
+      amount,
+      delegation
+    })
+  });
+
+  const result = await response.json();
+  if (!result.success) {
+    throw new Error(result.error || 'Rebalance operation failed');
+  }
+
+  return result;
+}, []);
   const unstakeKintsu = useCallback((
     amountIn: string,
     minOut: string,
@@ -102,7 +130,7 @@ export function useTokenOperations() {
   }, [postJSON]);
   // --- End of your changes ---
 
-  return {
+  return {executeRebalance,
     stakeMagma,
     unstakeMagma,
     stakeKintsu,

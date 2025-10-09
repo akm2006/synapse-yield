@@ -336,6 +336,82 @@ export async function POST(request: NextRequest) {
         });
         break;
       }
+// Add these cases to the existing switch statement in your execute route
+
+case "kintsu-to-magma-rebalance": {
+  const amountBigInt = parseUnits(amount, 18);
+  
+  // Step 1: Swap sMON → WMON via DEX
+  const allowanceCalls = await ensureTokenAllowances(
+    CONTRACTS.KINTSU,
+    amountBigInt,
+    userAddress as Address
+  );
+  approvalCalls.push(...allowanceCalls);
+
+  const path = encodeV3Path(CONTRACTS.KINTSU, CONTRACTS.WMON, 2500);
+  const commands = "0x00" as `0x${string}`;
+  const minOut = (amountBigInt * 95n / 100n);
+  
+  const inputSwap = encodeV3SwapExactInInput({
+    recipient: userAddress as Address,
+    amountIn: amountBigInt,
+    amountOutMin: minOut,
+    path,
+    payerIsUser: true,
+  });
+
+  const swapCallData = encodeFunctionData({
+    abi: universalRouterAbi,
+    functionName: "execute",
+    args: [commands, [inputSwap], BigInt(Math.floor(Date.now() / 1000) + 1800)],
+  });
+
+  mainExecutions.push({
+    target: CONTRACTS.PANCAKESWAP,
+    value: 0n,
+    callData: swapCallData,
+  });
+
+  // Step 2: Stake WMON → gMON via Magma
+  mainExecutions.push({
+    target: CONTRACTS.MAGMA_STAKE,
+    value: minOut,
+    callData: encodeFunctionData({
+      abi: magmaAbi,
+      functionName: "depositMon",
+      args: [],
+    }),
+  });
+  break;
+}
+
+case "magma-to-kintsu-rebalance": {
+  const amountBigInt = parseUnits(amount, 18);
+  
+  // Step 1: Unstake gMON → MON via Magma
+  mainExecutions.push({
+    target: CONTRACTS.MAGMA_STAKE,
+    value: 0n,
+    callData: encodeFunctionData({
+      abi: magmaAbi,
+      functionName: "withdrawMon",
+      args: [amountBigInt],
+    }),
+  });
+
+  // Step 2: Stake MON → sMON via Kintsu
+  mainExecutions.push({
+    target: CONTRACTS.KINTSU,
+    value: amountBigInt,
+    callData: encodeFunctionData({
+      abi: kintsuAbi,
+      functionName: "deposit",
+      args: [amountBigInt, userAddress as Address],
+    }),
+  });
+  break;
+}
 
       case "permit2-approve-step1": {
         const token: Address = body.token;
