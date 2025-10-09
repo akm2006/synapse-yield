@@ -270,12 +270,26 @@ if (result.operations?.length > 1) {
 
     try {
       addLog(`[ACTION] Request Unlock Kintsu: ${amount}`);
-      const result = await requestUnlock(amount, opId);
+      
+      const response = await fetch('/api/delegate/execute', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userAddress: smartAccountAddress,
+          operation: 'kintsu-request-unlock',
+          amount,
+          delegation
+        }),
+      });
 
-      if (!result.ok) return addLog(`[ERROR] requestUnlock: ${result.error}`);
-      if (result.userOpHash) addLog(`[UO] userOpHash: ${result.userOpHash}`);
-      if (result.transactionHash) addLog(`[TX] transactionHash: ${result.transactionHash}`);
-      if (result.blockNumber) addLog(`[TX] included at block: ${result.blockNumber}`);
+     const result = await response.json();
+
+if (!result.success) return addLog(`[ERROR] requestUnlock: ${result.error}`);
+
+const lastOp = result.operations?.[0]; // first or last execution
+if (lastOp?.userOpHash) addLog(`[UO] userOpHash: ${lastOp.userOpHash}`);
+if (lastOp?.txHash) addLog(`[TX] transactionHash: ${lastOp.txHash}`);
+if (lastOp?.blockNumber) addLog(`[TX] included at block: ${lastOp.blockNumber}`);
 
       await fetchBalances(false);
     } catch (err: any) {
@@ -291,12 +305,26 @@ if (result.operations?.length > 1) {
 
     try {
       addLog(`[ACTION] Redeem Unlock Index: ${unlockIndex}`);
-      const result = await redeemUnlock(unlockIndex, smartAccountAddress, opId);
+       const response = await fetch('/api/delegate/execute', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userAddress: smartAccountAddress,
+          receiver: smartAccountAddress,
+          operation: 'kintsu-redeem',
+          delegation,
+          unlockIndex
+        }),
+      });
 
-      if (!result.ok) return addLog(`[ERROR] redeem: ${result.error}`);
-      if (result.userOpHash) addLog(`[UO] userOpHash: ${result.userOpHash}`);
-      if (result.transactionHash) addLog(`[TX] transactionHash: ${result.transactionHash}`);
-      if (result.blockNumber) addLog(`[TX] included at block: ${result.blockNumber}`);
+     const result = await response.json();
+
+if (!result.success) return addLog(`[ERROR] requestUnlock: ${result.error}`);
+
+const lastOp = result.operations?.[0]; // first or last execution
+if (lastOp?.userOpHash) addLog(`[UO] userOpHash: ${lastOp.userOpHash}`);
+if (lastOp?.txHash) addLog(`[TX] transactionHash: ${lastOp.txHash}`);
+if (lastOp?.blockNumber) addLog(`[TX] included at block: ${lastOp.blockNumber}`);
 
       await fetchBalances(false);
     } catch (err: any) {
@@ -329,9 +357,9 @@ if (result.operations?.length > 1) {
           opId
         );
 
-        if (!result.ok) throw new Error(result.error);
+        if (!result.success) throw new Error(result.error);
         if (result.userOpHash) addLog(`[UO] userOpHash: ${result.userOpHash}`);
-        if (result.transactionHash) addLog(`[TX] transactionHash: ${result.transactionHash}`);
+        if (result.txHash) addLog(`[TX] transactionHash: ${result.txHash}`);
         if (result.blockNumber) addLog(`[TX] included at block: ${result.blockNumber}`);
         addLog('[SUCCESS] Direct swap completed in 1 transaction!');
 
@@ -350,9 +378,9 @@ if (result.operations?.length > 1) {
           opId
         );
 
-        if (!result.ok) throw new Error(result.error);
+        if (!result.success) throw new Error(result.error);
         if (result.userOpHash) addLog(`[UO] userOpHash: ${result.userOpHash}`);
-        if (result.transactionHash) addLog(`[TX] transactionHash: ${result.transactionHash}`);
+        if (result.txHash) addLog(`[TX] transactionHash: ${result.txHash}`);
         if (result.blockNumber) addLog(`[TX] included at block: ${result.blockNumber}`);
         addLog('[SUCCESS] Direct swap completed in 1 transaction!');
 
