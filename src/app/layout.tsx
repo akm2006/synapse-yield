@@ -1,10 +1,11 @@
 import type { Metadata } from "next";
 import { AppProvider } from "@/providers/AppProvider";
+import Header from "@/components/Header";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Synapse Yield Test - Delegation",
-  description: "Secure staking with MetaMask Delegation Toolkit",
+  title: "Synapse Yield - MetaMask Smart Accounts",
+  description: "Automated DeFi yield optimization secured by MetaMask Delegation Toolkit on Monad Network",
 };
 
 export default function RootLayout({
@@ -14,9 +15,14 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body>
+      <body className="bg-gray-900 text-white">
         <AppProvider>
-          {children}
+          <div className="min-h-screen flex flex-col">
+            <Header />
+            <main className="flex-1">
+              {children}
+            </main>
+          </div>
         </AppProvider>
       </body>
     </html>
