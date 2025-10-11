@@ -1,0 +1,222 @@
+[
+    {
+        "inputs": [
+            {
+                "internalType": "uint256",
+                "name": "unlockIndex",
+                "type": "uint256"
+            }
+        ],
+        "name": "cancelUnlockRequest",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "uint96",
+                "name": "shares",
+                "type": "uint96"
+            }
+        ],
+        "name": "convertToAssets",
+        "outputs": [
+            {
+                "internalType": "uint96",
+                "name": "assets",
+                "type": "uint96"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "uint96",
+                "name": "assets",
+                "type": "uint96"
+            }
+        ],
+        "name": "convertToShares",
+        "outputs": [
+            {
+                "internalType": "uint96",
+                "name": "shares",
+                "type": "uint96"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "address",
+                "name": "receiver",
+                "type": "address"
+            }
+        ],
+        "name": "deposit",
+        "outputs": [
+            {
+                "internalType": "uint96",
+                "name": "shares",
+                "type": "uint96"
+            }
+        ],
+        "stateMutability": "payable",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "address",
+                "name": "user",
+                "type": "address"
+            }
+        ],
+        "name": "getAllUserUnlockRequests",
+        "outputs": [
+            {
+                "components": [
+                    {
+                        "internalType": "uint96",
+                        "name": "shares",
+                        "type": "uint96"
+                    },
+                    {
+                        "internalType": "uint96",
+                        "name": "spotValue",
+                        "type": "uint96"
+                    },
+                    {
+                        "internalType": "uint40",
+                        "name": "batchId",
+                        "type": "uint40"
+                    },
+                    {
+                        "internalType": "uint16",
+                        "name": "exitFeeInBips",
+                        "type": "uint16"
+                    }
+                ],
+                "internalType": "struct IStakedHype.UnlockRequest[]",
+                "name": "",
+                "type": "tuple[]"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [],
+        "name": "mintableProtocolShares",
+        "outputs": [
+            {
+                "internalType": "uint96",
+                "name": "shares",
+                "type": "uint96"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "uint256",
+                "name": "unlockIndex",
+                "type": "uint256"
+            },
+            {
+                "internalType": "address payable",
+                "name": "receiver",
+                "type": "address"
+            }
+        ],
+        "name": "redeem",
+        "outputs": [
+            {
+                "internalType": "uint96",
+                "name": "assets",
+                "type": "uint96"
+            }
+        ],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "uint96",
+                "name": "shares",
+                "type": "uint96"
+            }
+        ],
+        "name": "requestUnlock",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    },
+    {
+        "inputs": [],
+        "name": "submitBatch",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    },
+    {
+        "inputs": [],
+        "name": "sweep",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    },
+    {
+        "inputs": [],
+        "name": "syncStaking",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    },
+    {
+        "inputs": [],
+        "name": "totalShares",
+        "outputs": [
+            {
+                "internalType": "uint96",
+                "name": "shares",
+                "type": "uint96"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "anonymous": false,
+        "inputs": [
+            {
+                "indexed": true,
+                "internalType": "address",
+                "name": "from",
+                "type": "address"
+            },
+            {
+                "indexed": true,
+                "internalType": "address",
+                "name": "to",
+                "type": "address"
+            },
+            {
+                "indexed": false,
+                "internalType": "uint256",
+                "name": "value",
+                "type": "uint256"
+            }
+        ],
+        "name": "Transfer",
+        "type": "event"
+    }
+]
