@@ -140,18 +140,14 @@ export default function YieldOptimizerPage() {
 
   if (!smartAccountAddress) {
     return (
-      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
-        <div className="text-center">
-          <div className="p-4 bg-yellow-600/20 rounded-full w-16 h-16 mx-auto mb-4 flex items-center justify-center">
-            <ChartBarIcon className="h-8 w-8 text-yellow-400" />
-          </div>
+      <div className="min-h-screen bg-gradient-to-br from-gray-950 via-blue-950/50 to-gray-950 flex items-center justify-center">
+        <div className="text-center max-w-md">
+          <div className="text-6xl mb-4">📊</div>
           <h2 className="text-2xl font-bold text-white mb-2">Smart Account Required</h2>
-          <p className="text-gray-400 mb-6">
-            Please create a smart account first to use the yield optimizer.
-          </p>
+          <p className="text-gray-400 mb-6">Create a smart account to access the yield optimizer</p>
           <a
             href="/dashboard"
-            className="inline-flex items-center px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors"
+            className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-xl transition-colors inline-block"
           >
             Go to Dashboard
           </a>
@@ -161,20 +157,18 @@ export default function YieldOptimizerPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-900">
+    <div className="min-h-screen bg-gradient-to-br from-gray-950 via-blue-950/50 to-gray-950">
       {/* Header */}
-      <div className="bg-gradient-to-r from-green-900/20 to-blue-900/20 border-b border-gray-700">
+      <div className="border-b border-white/10 bg-white/5 backdrop-blur-sm">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="py-6">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-green-600/20 rounded-lg">
-                <ArrowTrendingUpIcon className="h-8 w-8 text-green-400" />
+          <div className="py-8">
+            <div className="flex items-center gap-4">
+              <div className="p-3 bg-gradient-to-r from-green-500 to-emerald-500 rounded-xl">
+                <ArrowTrendingUpIcon className="h-8 w-8 text-white" />
               </div>
               <div>
-                <h1 className="text-3xl font-bold text-white">Yield Optimizer</h1>
-                <p className="mt-1 text-gray-400">
-                  Automated yield maximization across Monad DeFi protocols
-                </p>
+                <h1 className="text-4xl font-bold text-white mb-2">Yield Optimizer</h1>
+                <p className="text-gray-400">Automated yield maximization across Monad DeFi protocols</p>
               </div>
             </div>
           </div>
@@ -183,15 +177,15 @@ export default function YieldOptimizerPage() {
 
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Left Column - Optimizer Interface */}
-          <div className="lg:col-span-2 space-y-6">
+          {/* Left Column - Portfolio Overview */}
+          <div className="space-y-6">
             {/* Portfolio Overview */}
-            <div className="bg-gray-800/50 rounded-xl border border-gray-700 p-6">
+            <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-6">
               <h2 className="text-xl font-semibold text-white mb-6">Portfolio Overview</h2>
               
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                 {/* Total Value Locked */}
-                <div className="bg-gray-900/50 rounded-lg p-4 border border-gray-600">
+                <div className="bg-black/20 rounded-xl p-4 border border-white/10">
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-sm text-gray-400">Total Value Locked</p>
@@ -206,7 +200,7 @@ export default function YieldOptimizerPage() {
                 </div>
 
                 {/* Current Blended APY */}
-                <div className="bg-gray-900/50 rounded-lg p-4 border border-gray-600">
+                <div className="bg-black/20 rounded-xl p-4 border border-white/10">
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-sm text-gray-400">Current Blended APY</p>
@@ -225,21 +219,21 @@ export default function YieldOptimizerPage() {
               <div className="mt-6">
                 <h3 className="text-lg font-medium text-white mb-4">Asset Allocation</h3>
                 <div className="space-y-3">
-                  <div className="flex items-center justify-between p-3 bg-gray-900/30 rounded-lg">
+                  <div className="flex items-center justify-between p-3 bg-white/5 rounded-xl border border-white/10">
                     <div className="flex items-center gap-3">
                       <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
                       <span className="text-white">Native MON</span>
                     </div>
                     <span className="text-gray-300">{balances?.native || '0.00'} MON</span>
                   </div>
-                  <div className="flex items-center justify-between p-3 bg-gray-900/30 rounded-lg">
+                  <div className="flex items-center justify-between p-3 bg-white/5 rounded-xl border border-white/10">
                     <div className="flex items-center gap-3">
                       <div className="w-3 h-3 bg-green-500 rounded-full"></div>
                       <span className="text-white">Kintsu (sMON)</span>
                     </div>
                     <span className="text-gray-300">{balances?.kintsu || '0.00'} sMON</span>
                   </div>
-                  <div className="flex items-center justify-between p-3 bg-gray-900/30 rounded-lg">
+                  <div className="flex items-center justify-between p-3 bg-white/5 rounded-xl border border-white/10">
                     <div className="flex items-center gap-3">
                       <div className="w-3 h-3 bg-purple-500 rounded-full"></div>
                       <span className="text-white">Magma (gMON)</span>
@@ -250,33 +244,8 @@ export default function YieldOptimizerPage() {
               </div>
             </div>
 
-         
-
-            {/* Yield Optimizer Interface - Fix: Provide required props */}
-            <div className="bg-gray-800/50 rounded-xl border border-gray-700 p-6">
-              <h2 className="text-xl font-semibold text-white mb-4">Optimizer Controls</h2>
-              <YieldOptimizerInterface 
-                smartAccountAddress={smartAccountAddress}
-                delegation={delegation}
-                onLog={addLog}
-                onBalanceRefresh={() => fetchBalances(false)}
-              />
-            </div>
-
-       
-            
-          </div>
-
-          {/* Right Column - Activity Log */}
-          <div className="space-y-6">
-            <TransactionLogger
-              title="Yield Optimizer Activity"
-              logs={logs}
-              onClear={clearLogs}
-            />
-
             {/* Performance Stats */}
-            <div className="bg-gray-800/50 rounded-xl border border-gray-700 p-6">
+            <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-6">
               <h3 className="text-lg font-semibold text-white mb-4">Performance Stats</h3>
               <div className="space-y-4">
                 <div className="flex justify-between items-center">
@@ -297,28 +266,49 @@ export default function YieldOptimizerPage() {
                 </div>
               </div>
             </div>
+          </div>
+
+          {/* Center & Right Columns - Main Content */}
+          <div className="lg:col-span-2 space-y-6">
+            {/* Yield Optimizer Interface */}
+            <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-6">
+              <h2 className="text-xl font-semibold text-white mb-4">Optimizer Controls</h2>
+              <YieldOptimizerInterface 
+                smartAccountAddress={smartAccountAddress}
+                delegation={delegation}
+                onLog={addLog}
+                onBalanceRefresh={() => fetchBalances(false)}
+              />
+            </div>
+
+            {/* Transaction Logger */}
+            <TransactionLogger
+              title="Yield Optimizer Activity"
+              logs={logs}
+              onClear={clearLogs}
+            />
 
             {/* Quick Actions */}
-            <div className="bg-gray-800/50 rounded-xl border border-gray-700 p-6">
+            <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-6">
               <h3 className="text-lg font-semibold text-white mb-4">Quick Actions</h3>
               <div className="space-y-3">
                 <button
                   onClick={handleOptimizeYield}
                   disabled={!delegation || balancesLoading}
-                  className="w-full px-4 py-3 bg-green-600 hover:bg-green-700 disabled:bg-gray-600 text-white font-medium rounded-lg transition-colors"
+                  className="w-full px-4 py-3 bg-green-600 hover:bg-green-700 disabled:bg-gray-600 text-white font-medium rounded-xl transition-colors"
                 >
                   Optimize Now
                 </button>
                 <button
                   onClick={() => fetchBalances(true)}
                   disabled={balancesLoading}
-                  className="w-full px-4 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 text-white font-medium rounded-lg transition-colors"
+                  className="w-full px-4 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 text-white font-medium rounded-xl transition-colors"
                 >
                   Refresh Balances
                 </button>
                 <a
                   href="/dashboard"
-                  className="w-full px-4 py-3 bg-gray-700 hover:bg-gray-600 text-white font-medium rounded-lg transition-colors text-center block"
+                  className="w-full px-4 py-3 bg-gray-700 hover:bg-gray-600 text-white font-medium rounded-xl transition-colors text-center block"
                 >
                   Back to Dashboard
                 </a>
