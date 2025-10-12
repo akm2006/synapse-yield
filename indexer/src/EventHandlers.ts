@@ -1,64 +1,44 @@
-import { Magma, Kintsu, Pancake, Stake, Withdrawal, Swap, Protocol } from "generated";
+import { Magma, Kintsu, Pancake, Activity } from "generated";
 
 // --- Constants ---
-
 const KINTSU_CONTRACT_ADDRESS = "0xe1d2439b75fb9746E7Bc6cB777Ae10AA7f7ef9c5".toLowerCase();
-const PANCAKE_TOKEN0_ADDRESS = "0xe1d2439b75fb9746E7Bc6cB777Ae10AA7f7ef9c5"; // sMON
-const PANCAKE_TOKEN1_ADDRESS = "0xaEef2f6B429Cb59C9B2D7bB2141ADa993E8571c3"; // GMON
+const SMON_ADDRESS = "0xe1d2439b75fb9746E7Bc6cB777Ae10AA7f7ef9c5";
+const GMON_ADDRESS = "0xaEef2f6B429Cb59C9B2D7bB2141ADa993E8571c3";
 
+// A map to get token names from their addresses
+const tokenNameMap: Record<string, string> = {
+  [SMON_ADDRESS.toLowerCase()]: "sMON",
+  [GMON_ADDRESS.toLowerCase()]: "gMON",
+};
 
-// --- TVL Helper Function ---
-
-async function updateTvl(protocolId: string, amount: bigint, isDeposit: boolean, context: any) {
-  let protocol = await context.Protocol.get(protocolId);
-
-  // If the protocol entity doesn't exist, create it
-  if (!protocol) {
-    protocol = {
-      id: protocolId,
-      tvl: BigInt(0),
-    };
-  }
-
-  // Update the TVL
-  if (isDeposit) {
-    protocol.tvl = protocol.tvl + amount;
-  } else {
-    protocol.tvl = protocol.tvl - amount;
-  }
-
-  context.Protocol.set(protocol);
-}
-
-
-// --- Staking & Unstaking Handlers ---
+// --- Handlers ---
 
 Magma.Deposit.handler(async ({ event, context }) => {
-  const newStake: Stake = {
+  const activity: Activity = {
     id: `${event.transaction.hash}-${event.logIndex}`,
     transactionHash: event.transaction.hash,
+    blockTimestamp: BigInt(event.block.timestamp),
     user: event.params.depositor,
+    activityType: "Stake", 
     protocol: "MAGMA",
     amount: event.params.amount,
+    fromToken: undefined, toToken: undefined, fromTokenName: undefined, toTokenName: undefined, fromAmount: undefined, toAmount: undefined,
   };
-  context.Stake.set(newStake);
-
-  // ADDED: Update the TVL for Magma
-  await updateTvl("MAGMA", event.params.amount, true, context);
+  context.Activity.set(activity);
 });
 
 Magma.Withdraw.handler(async ({ event, context }) => {
-  const newWithdrawal: Withdrawal = {
+  const activity: Activity = {
     id: `${event.transaction.hash}-${event.logIndex}`,
     transactionHash: event.transaction.hash,
+    blockTimestamp: BigInt(event.block.timestamp),
     user: event.params.withdrawer,
+    activityType: "Unstake", 
     protocol: "MAGMA",
     amount: event.params.amount,
+    fromToken: undefined, toToken: undefined, fromTokenName: undefined, toTokenName: undefined, fromAmount: undefined, toAmount: undefined,
   };
-  context.Withdrawal.set(newWithdrawal);
-
-  // ADDED: Update the TVL for Magma
-  await updateTvl("MAGMA", event.params.amount, false, context);
+  context.Activity.set(activity);
 });
 
 Kintsu.Transfer.handler(async ({ event, context }) => {
@@ -66,63 +46,66 @@ Kintsu.Transfer.handler(async ({ event, context }) => {
   const to = event.params.to.toLowerCase();
 
   if (to === KINTSU_CONTRACT_ADDRESS && from !== KINTSU_CONTRACT_ADDRESS) {
-    const newStake: Stake = {
+    const activity: Activity = {
       id: `${event.transaction.hash}-${event.logIndex}`,
       transactionHash: event.transaction.hash,
+      blockTimestamp: BigInt(event.block.timestamp),
       user: from,
+      activityType: "Stake", // Renamed from "type"
       protocol: "KINTSU",
       amount: event.params.value,
+      fromToken: undefined, toToken: undefined, fromTokenName: undefined, toTokenName: undefined, fromAmount: undefined, toAmount: undefined,
     };
-    context.Stake.set(newStake);
-
-    // ADDED: Update the TVL for Kintsu
-    await updateTvl("KINTSU", event.params.value, true, context);
-  }
-  else if (from === KINTSU_CONTRACT_ADDRESS && to !== KINTSU_CONTRACT_ADDRESS) {
-    const newWithdrawal: Withdrawal = {
+    context.Activity.set(activity);
+  } else if (from === KINTSU_CONTRACT_ADDRESS && to !== KINTSU_CONTRACT_ADDRESS) {
+    const activity: Activity = {
       id: `${event.transaction.hash}-${event.logIndex}`,
       transactionHash: event.transaction.hash,
+      blockTimestamp: BigInt(event.block.timestamp),
       user: to,
+      activityType: "Unstake", // Renamed from "type"
       protocol: "KINTSU",
       amount: event.params.value,
+      fromToken: undefined, toToken: undefined, fromTokenName: undefined, toTokenName: undefined, fromAmount: undefined, toAmount: undefined,
     };
-    context.Withdrawal.set(newWithdrawal);
-    
-    // ADDED: Update the TVL for Kintsu
-    await updateTvl("KINTSU", event.params.value, false, context);
+    context.Activity.set(activity);
   }
 });
 
-
-// --- Swapping Handler ---
-
 Pancake.Swap.handler(async ({ event, context }) => {
-  let fromToken: string;
-  let toToken: string;
-  let fromAmount: bigint;
-  let toAmount: bigint;
+  let fromToken: string, toToken: string, fromAmount: bigint, toAmount: bigint;
+  
+  // Based on your previous finding: sMON is token0, gMON is token1
+  const TOKEN0 = SMON_ADDRESS;
+  const TOKEN1 = GMON_ADDRESS;
 
   if (event.params.amount0 > 0) {
-    toToken = PANCAKE_TOKEN0_ADDRESS;
+    toToken = TOKEN0;
     toAmount = event.params.amount0;
-    fromToken = PANCAKE_TOKEN1_ADDRESS;
+    fromToken = TOKEN1;
     fromAmount = BigInt(Math.abs(Number(event.params.amount1)));
   } else {
-    toToken = PANCAKE_TOKEN1_ADDRESS;
+    toToken = TOKEN1;
     toAmount = event.params.amount1;
-    fromToken = PANCAKE_TOKEN0_ADDRESS;
+    fromToken = TOKEN0;
     fromAmount = BigInt(Math.abs(Number(event.params.amount0)));
   }
 
-  const newSwap: Swap = {
+  const activity: Activity = {
     id: `${event.transaction.hash}-${event.logIndex}`,
     transactionHash: event.transaction.hash,
-    sender: event.params.sender,
-    recipient: event.params.recipient,
+    blockTimestamp: BigInt(event.block.timestamp),
+    user: event.params.recipient,
+    activityType: "Swap", // Renamed from "type"
+    protocol: "Pancake",
+    amount: undefined,
     fromToken: fromToken,
     toToken: toToken,
+    fromTokenName: tokenNameMap[fromToken.toLowerCase()] || "Unknown",
+    toTokenName: tokenNameMap[toToken.toLowerCase()] || "Unknown",
     fromAmount: fromAmount,
     toAmount: toAmount,
   };
-  context.Swap.set(newSwap);
+  context.Activity.set(activity);
 });
+

@@ -6,7 +6,7 @@ type Stake @entity {
   amount: BigInt!
 }
 
-type Withdrawal @entity {
+type Unstake @entity {
   id: ID!
   transactionHash: String!
   user: String! # The user receiving the funds
@@ -25,9 +25,23 @@ type Swap @entity {
   toAmount: BigInt!
 }
 
-# Add this new type to your schema.graphql file
+type Activity @entity {
+  id: ID!
+  transactionHash: String!
+  blockTimestamp: BigInt!
+  
+  user: String!
+  activityType: String!
+  protocol: String!   # "MAGMA", "KINTSU", or "Pancake"
+  
+  # Fields for Stakes/Unstakes
+  amount: BigInt
 
-type Protocol @entity {
-  id: ID! # e.g., "MAGMA" or "KINTSU"
-  tvl: BigInt!
+  # Fields for Swaps
+  fromToken: String
+  toToken: String
+  fromTokenName: String
+  toTokenName: String
+  fromAmount: BigInt
+  toAmount: BigInt
 }
