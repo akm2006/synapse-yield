@@ -13,7 +13,7 @@ import {
   WalletIcon,
   ArrowsRightLeftIcon,
   ArrowPathIcon,
-  SparklesIcon
+  SparklesIcon,
 } from '@heroicons/react/24/outline';
 
 export default function Header() {
@@ -109,6 +109,14 @@ export default function Header() {
       href: '/yield-optimizer', 
       icon: ChartBarIcon,
       current: pathname === '/yield-optimizer' 
+
+    },
+     { 
+      name: 'Activity', 
+      href: '/activity', 
+      icon: ChartBarIcon,
+      current: pathname === '/activity' 
+      
     },
   ];
 

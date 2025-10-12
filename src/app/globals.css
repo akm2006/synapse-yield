@@ -1,4 +1,73 @@
+/* Using the single all-in-one import for Tailwind CSS v4 */
 @import "tailwindcss";
+
+@layer utilities {
+  .highlight-new {
+    animation: highlight-fade 2s ease-out;
+  }
+@layer utilities {
+  /* ... (keep your existing utilities like .highlight-new) ... */
+  .animate-fade-in {
+     animation: fade-in 0.5s ease-out forwards;
+  }
+  
+  @keyframes fade-in {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .highlight-new {
+    animation: highlight-fade 2s ease-out;
+  }
+
+  @keyframes highlight-fade {
+    0% {
+      background-color: rgba(59, 130, 246, 0.4);
+      box-shadow: 0 0 10px rgba(59, 130, 246, 0.3);
+    }
+    100% {
+      background-color: transparent;
+      box-shadow: none;
+    }
+  }
+
+  /* ADD THIS NEW ANIMATION FOR THE PAGE BACKGROUND */
+  .bg-animation {
+    animation: aurora 20s ease infinite alternate;
+  }
+
+  @keyframes aurora {
+    0% {
+      background-position: 0% 50%;
+    }
+    50% {
+      background-position: 100% 50%;
+    }
+    100% {
+      background-position: 0% 50%;
+    }
+  }
+}
+  @keyframes highlight-fade {
+    0% {
+      background-color: rgba(59, 130, 246, 0.4); /* blue-500 with 40% opacity */
+      box-shadow: 0 0 10px rgba(59, 130, 246, 0.3);
+    }
+    100% {
+      background-color: transparent;
+      box-shadow: none;
+    }
+  }
+
+  .animate-fade-in {
+     animation: fade-in 0.5s ease-out forwards;
+  }
+  
+  @keyframes fade-in {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+}
 
 :root {
   --background: #ffffff;

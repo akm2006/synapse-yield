@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { AppProvider } from "@/providers/AppProvider";
 import Header from "@/components/Header";
 import "./globals.css";
-
+import { ApolloProviderWrapper } from "@/providers/ApolloProviderWrapper";
 export const metadata: Metadata = {
   title: "Synapse Yield - MetaMask Smart Accounts",
   description: "Automated DeFi yield optimization secured by MetaMask Delegation Toolkit on Monad Network",
@@ -16,6 +16,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className="bg-gray-900 text-white">
+        <ApolloProviderWrapper>
         <AppProvider>
           <div className="min-h-screen flex flex-col">
             <Header />
@@ -24,6 +25,7 @@ export default function RootLayout({
             </main>
           </div>
         </AppProvider>
+        </ApolloProviderWrapper>
       </body>
     </html>
   );
