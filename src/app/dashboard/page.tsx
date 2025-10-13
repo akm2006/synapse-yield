@@ -10,7 +10,8 @@ import SmartAccountManager from '@/components/SmartAccountManager';
 import DelegationManager from "@/components/DelegationManager";
 import BalanceDisplay from '@/components/BalanceDisplay';
 import TransactionLogger from '@/components/TransactionLogger';
-import { CheckCircleIcon, CogIcon, WalletIcon, ArrowPathIcon, ChartBarIcon } from '@heroicons/react/24/outline';
+import { CheckCircleIcon, CogIcon, WalletIcon, ArrowPathIcon, ChartBarIcon, ShieldExclamationIcon } from '@heroicons/react/24/outline';
+import { useAuth } from '@/providers/AuthProvider'; // Import useAuth
 import Link from 'next/link';
 
 export default function Dashboard() {
@@ -19,8 +20,10 @@ export default function Dashboard() {
   const { logs, addLog, clearLogs } = useTransactionLogger();
   const [delegation, setDelegation] = useState<Delegation | null>(null);
 
+  const { isAuthenticated, isLoading: isAuthLoading } = useAuth();
+
   useEffect(() => {
-    if (smartAccountAddress && !delegation) {
+    if (isAuthenticated && smartAccountAddress && !delegation) {
       const loadExistingDelegation = async () => {
         try {
           const { loadDelegation } = await import('@/utils/delegation');
@@ -35,7 +38,31 @@ export default function Dashboard() {
       };
       loadExistingDelegation();
     }
-  }, [smartAccountAddress, delegation, addLog]);
+  }, [isAuthenticated, smartAccountAddress, delegation, addLog]);
+
+  // Loading and Unauthenticated states
+  if (isAuthLoading) {
+  return (
+    <div className="min-h-screen flex items-center justify-center text-center">
+      <div>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-400 mx-auto"></div>
+        <p className="mt-4 text-gray-400">Loading session...</p>
+      </div>
+    </div>
+  );
+  }
+
+  if (!isAuthenticated) {
+   return (
+    <div className="min-h-screen flex items-center justify-center text-center p-4">
+      <div className="bg-gray-900/50 border border-white/10 rounded-2xl p-8 max-w-md">
+        <ShieldExclamationIcon className="h-16 w-16 mx-auto text-yellow-400 mb-4" />
+        <h2 className="text-2xl font-bold text-white">Authentication Required</h2>
+        <p className="text-gray-400 mt-2 mb-6">Please connect your wallet and sign in using the button in the header to access your dashboard.</p>
+      </div>
+    </div>
+  );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-950 via-blue-950/50 to-gray-950">

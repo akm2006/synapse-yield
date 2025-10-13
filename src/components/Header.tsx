@@ -14,7 +14,10 @@ import {
   ArrowsRightLeftIcon,
   ArrowPathIcon,
   ChartBarIcon,
+  ArrowRightOnRectangleIcon,
 } from '@heroicons/react/24/outline';
+import { useAuth } from '@/providers/AuthProvider'; // Import the useAuth hook
+import { useAccount } from 'wagmi';
 
 const navigation = [
   { name: 'Home', href: '/', icon: HomeIcon },
@@ -56,6 +59,9 @@ export default function Header() {
   const [isScrolled, setIsScrolled] = useState(false);
   const pathname = usePathname();
 
+  const { isAuthenticated, signIn, isLoading } = useAuth(); // Get auth state
+  const { isConnected } = useAccount();
+
   useEffect(() => {
     const handleScroll = () => {
       setIsScrolled(window.scrollY > 20);
@@ -63,6 +69,28 @@ export default function Header() {
     window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
+
+  const AuthButton = () => {
+    if (!isConnected) {
+      return <ConnectButton chainStatus="icon" showBalance={false} />;
+    }
+
+    if (!isAuthenticated) {
+      return (
+        <button
+          onClick={signIn}
+          disabled={isLoading}
+          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-full font-medium text-sm hover:bg-blue-700 transition-colors disabled:bg-blue-800"
+        >
+          <ArrowRightOnRectangleIcon className="h-5 w-5" />
+          {isLoading ? 'Signing in...' : 'Sign In'}
+        </button>
+      );
+    }
+    
+    // When connected and authenticated, show the standard button
+    return <ConnectButton chainStatus="icon" showBalance={false} />;
+  };
 
   return (
     <>
@@ -94,6 +122,7 @@ export default function Header() {
                   width={36}
                   height={36}
                   className="transition-transform duration-300 group-hover:scale-110"
+                  style={{ height: 'auto' }} // Ensure aspect ratio is preserved
                 />
               </motion.div>
               <div className="hidden md:block">
@@ -135,10 +164,7 @@ export default function Header() {
 
             <div className="flex items-center gap-2">
               <div className="bg-white/5 rounded-full p-1 border border-white/10">
-                <ConnectButton
-                  chainStatus="icon"
-                  showBalance={false}
-                />
+                <AuthButton />
               </div>
 
               <div className="lg:hidden">
