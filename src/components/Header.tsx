@@ -2,258 +2,198 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { usePathname } from 'next/navigation';
-import { useSmartAccount } from '@/hooks/useSmartAccount';
-import { 
-  Bars3Icon, 
-  XMarkIcon, 
-  ChartBarIcon,
+import { ConnectButton } from '@rainbow-me/rainbowkit';
+import { motion, AnimatePresence, Variants } from 'framer-motion';
+import {
+  Bars3Icon,
+  XMarkIcon,
   CpuChipIcon,
   HomeIcon,
-  WalletIcon,
   ArrowsRightLeftIcon,
   ArrowPathIcon,
-  SparklesIcon,
+  ChartBarIcon,
 } from '@heroicons/react/24/outline';
+
+const navigation = [
+  { name: 'Home', href: '/', icon: HomeIcon },
+  { name: 'Dashboard', href: '/dashboard', icon: CpuChipIcon },
+  { name: 'Staking', href: '/stake', icon: ArrowPathIcon },
+  { name: 'Swap', href: '/swap', icon: ArrowsRightLeftIcon },
+  { name: 'Optimizer', href: '/yield-optimizer', icon: ChartBarIcon },
+  { name: 'Activity', href: '/activity', icon: ChartBarIcon },
+];
+
+const navItemVariants: Variants = {
+  hidden: { opacity: 0, y: -20 },
+  visible: (i: number) => ({
+    opacity: 1,
+    y: 0,
+    transition: {
+      delay: i * 0.05,
+      duration: 0.3,
+      ease: 'easeOut',
+    },
+  }),
+};
+
+const mobileMenuVariants: Variants = {
+  open: {
+    opacity: 1,
+    y: 0,
+    transition: { duration: 0.3, ease: 'easeOut' },
+  },
+  closed: {
+    opacity: 0,
+    y: '-100%',
+    transition: { duration: 0.3, ease: 'easeIn' },
+  },
+};
 
 export default function Header() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [connectedAccount, setConnectedAccount] = useState<string | null>(null);
   const [isScrolled, setIsScrolled] = useState(false);
-  const { smartAccountAddress } = useSmartAccount();
   const pathname = usePathname();
 
   useEffect(() => {
     const handleScroll = () => {
-      setIsScrolled(window.scrollY > 10);
+      setIsScrolled(window.scrollY > 20);
     };
-    window.addEventListener('scroll', handleScroll);
+    window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
-  useEffect(() => {
-    const checkConnection = async () => {
-      if (typeof window !== 'undefined' && (window as any).ethereum) {
-        try {
-          const accounts = await (window as any).ethereum.request({ 
-            method: 'eth_accounts' 
-          });
-          setConnectedAccount(accounts[0] || null);
-        } catch (error) {
-          console.error('Failed to check wallet connection:', error);
-        }
-      }
-    };
-
-    checkConnection();
-
-    if ((window as any).ethereum) {
-      (window as any).ethereum.on('accountsChanged', (accounts: string[]) => {
-        setConnectedAccount(accounts[0] || null);
-      });
-    }
-
-    return () => {
-      if ((window as any).ethereum) {
-        (window as any).ethereum.removeAllListeners('accountsChanged');
-      }
-    };
-  }, []);
-
-  const connectWallet = async () => {
-    if (typeof window !== 'undefined' && (window as any).ethereum) {
-      try {
-        const accounts = await (window as any).ethereum.request({ 
-          method: 'eth_requestAccounts' 
-        });
-        setConnectedAccount(accounts[0]);
-      } catch (error) {
-        console.error('Failed to connect wallet:', error);
-      }
-    } else {
-      alert('Please install MetaMask to use this application');
-    }
-  };
-
-  const formatAddress = (address: string) => {
-    return `${address.slice(0, 6)}...${address.slice(-4)}`;
-  };
-
-  const navigation = [
-    { 
-      name: 'Home', 
-      href: '/', 
-      icon: HomeIcon,
-      current: pathname === '/' 
-    },
-    { 
-      name: 'Dashboard', 
-      href: '/dashboard', 
-      icon: CpuChipIcon,
-      current: pathname === '/dashboard' 
-    },
-    { 
-      name: 'Staking', 
-      href: '/stake', 
-      icon: ArrowPathIcon,
-      current: pathname === '/stake' 
-    },
-    { 
-      name: 'Swap', 
-      href: '/swap', 
-      icon: ArrowsRightLeftIcon,
-      current: pathname === '/swap' 
-    },
-    { 
-      name: 'Optimizer', 
-      href: '/yield-optimizer', 
-      icon: ChartBarIcon,
-      current: pathname === '/yield-optimizer' 
-
-    },
-     { 
-      name: 'Activity', 
-      href: '/activity', 
-      icon: ChartBarIcon,
-      current: pathname === '/activity' 
-      
-    },
-  ];
-
   return (
-    <header className={`sticky top-0 z-50 transition-all duration-300 ${
-      isScrolled 
-        ? 'bg-gray-950/80 backdrop-blur-xl border-b border-white/10 shadow-lg' 
-        : 'bg-transparent border-b border-white/5'
-    }`}>
-      <nav className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        <div className="flex h-20 items-center justify-between">
-          {/* Logo */}
-          <Link href="/" className="flex items-center gap-3 group">
-            <div className="relative">
-              <div className="absolute inset-0 bg-gradient-to-r from-blue-600 to-purple-600 rounded-xl blur-lg opacity-50 group-hover:opacity-75 transition-opacity"></div>
-              <div className="relative p-2.5 bg-gradient-to-r from-blue-600 to-purple-600 rounded-xl">
-                <SparklesIcon className="h-6 w-6 text-white" />
+    <>
+      <motion.header
+        initial={{ y: -20, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        transition={{ duration: 0.5, ease: 'easeOut', delay: 0.2 }}
+        className="fixed top-0 left-0 right-0 z-50 p-4"
+      >
+        <div
+          className={`mx-auto max-w-7xl rounded-2xl transition-all duration-300 ${
+            isScrolled
+              ? 'bg-gray-950/70 backdrop-blur-xl border border-white/10 shadow-lg'
+              : 'bg-transparent'
+          }`}
+        >
+          <nav className="flex h-20 items-center justify-between px-4 sm:px-6">
+            <Link href="/" className="flex items-center gap-3 group">
+              <motion.div
+                animate={{
+                  scale: [1, 1.05, 1],
+                  rotate: [0, 5, 0],
+                }}
+                transition={{ duration: 5, repeat: Infinity, repeatType: 'mirror' }}
+              >
+                <Image
+                  src="/logo.png"
+                  alt="Synapse Yield Logo"
+                  width={36}
+                  height={36}
+                  className="transition-transform duration-300 group-hover:scale-110"
+                />
+              </motion.div>
+              <div className="hidden md:block">
+                <h1 className="text-xl font-bold text-white/90 tracking-tight">
+                  Synapse Yield
+                </h1>
+              </div>
+            </Link>
+
+            <div className="hidden lg:flex items-center gap-2 p-1 bg-white/5 border border-white/10 rounded-full">
+              {navigation.map((item, i) => (
+                <motion.div
+                  key={item.name}
+                  custom={i}
+                  initial="hidden"
+                  animate="visible"
+                  variants={navItemVariants}
+                >
+                  <Link
+                    href={item.href}
+                    className="relative px-4 py-2 rounded-full text-sm font-medium text-white/70 transition-colors duration-300 hover:text-white"
+                  >
+                    {pathname === item.href && (
+                      <motion.span
+                        layoutId="active-pill"
+                        className="absolute inset-0 bg-gradient-to-r from-blue-500/30 to-teal-500/30 rounded-full"
+                        transition={{
+                          type: 'spring',
+                          stiffness: 300,
+                          damping: 30,
+                        }}
+                      />
+                    )}
+                    <span className="relative z-10">{item.name}</span>
+                  </Link>
+                </motion.div>
+              ))}
+            </div>
+
+            <div className="flex items-center gap-2">
+              <div className="bg-white/5 rounded-full p-1 border border-white/10">
+                <ConnectButton
+                  chainStatus="icon"
+                  showBalance={false}
+                />
+              </div>
+
+              <div className="lg:hidden">
+                <button
+                  type="button"
+                  className="p-2 text-white/70 hover:text-white"
+                  onClick={() => setMobileMenuOpen(true)}
+                >
+                  <Bars3Icon className="h-6 w-6" />
+                </button>
               </div>
             </div>
-            <div className="hidden sm:block">
-              <span className="text-xl font-bold bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">
-                Synapse Yield
-              </span>
-              <p className="text-xs text-gray-500">Automated DeFi</p>
-            </div>
-          </Link>
+          </nav>
+        </div>
+      </motion.header>
 
-          {/* Desktop Navigation */}
-          <div className="hidden lg:flex items-center space-x-2">
-            {navigation.map((item) => {
-              const Icon = item.icon;
-              return (
+      <AnimatePresence>
+        {mobileMenuOpen && (
+          <motion.div
+            variants={mobileMenuVariants}
+            initial="closed"
+            animate="open"
+            exit="closed"
+            className="lg:hidden fixed top-0 left-0 w-full h-screen bg-gray-950/90 backdrop-blur-lg z-50"
+          >
+            <div className="flex justify-between items-center p-4 border-b border-white/10">
+              <h2 className="font-bold text-white">Menu</h2>
+              <button
+                type="button"
+                className="p-2 text-white/70 hover:text-white"
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                <XMarkIcon className="h-6 w-6" />
+              </button>
+            </div>
+            <div className="p-4 space-y-2">
+              {navigation.map((item) => (
                 <Link
                   key={item.name}
                   href={item.href}
-                  className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 ${
-                    item.current
-                      ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg shadow-blue-500/25'
-                      : 'text-gray-400 hover:text-white hover:bg-white/5'
+                  className={`flex items-center gap-3 p-3 rounded-lg text-base font-medium transition-colors ${
+                    pathname === item.href
+                      ? 'bg-gradient-to-r from-blue-500/30 to-teal-500/30 text-white'
+                      : 'text-white/70 hover:bg-white/10 hover:text-white'
                   }`}
+                  onClick={() => setMobileMenuOpen(false)}
                 >
-                  <Icon className="h-4 w-4" />
+                  <item.icon className="h-5 w-5" />
                   <span>{item.name}</span>
                 </Link>
-              );
-            })}
-          </div>
-
-          {/* Right Section */}
-          <div className="flex items-center gap-3">
-            {/* Smart Account Status */}
-            {smartAccountAddress && (
-              <div className="hidden xl:flex items-center gap-2 px-4 py-2 bg-green-500/10 border border-green-500/20 rounded-xl backdrop-blur-sm">
-                <div className="relative">
-                  <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-                  <div className="absolute inset-0 w-2 h-2 bg-green-400 rounded-full animate-ping"></div>
-                </div>
-                <span className="text-sm text-green-400 font-medium">Smart Account</span>
-              </div>
-            )}
-
-            {/* Connect Wallet Button */}
-            {connectedAccount ? (
-              <div className="flex items-center gap-2 px-4 py-2.5 bg-white/5 border border-white/10 rounded-xl backdrop-blur-sm hover:bg-white/10 transition-all">
-                <WalletIcon className="h-4 w-4 text-blue-400" />
-                <span className="text-sm text-white font-medium hidden sm:inline">
-                  {formatAddress(connectedAccount)}
-                </span>
-                <div className="w-2 h-2 bg-green-400 rounded-full"></div>
-              </div>
-            ) : (
-              <button
-                onClick={connectWallet}
-                className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white text-sm font-semibold rounded-xl transition-all duration-200 shadow-lg hover:shadow-blue-500/25"
-              >
-                <WalletIcon className="h-4 w-4" />
-                <span className="hidden sm:inline">Connect</span>
-              </button>
-            )}
-
-            {/* Mobile menu button */}
-            <button
-              type="button"
-              className="lg:hidden p-2.5 text-gray-400 hover:text-white hover:bg-white/5 rounded-xl transition-all"
-              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            >
-              <span className="sr-only">Open menu</span>
-              {mobileMenuOpen ? (
-                <XMarkIcon className="h-6 w-6" />
-              ) : (
-                <Bars3Icon className="h-6 w-6" />
-              )}
-            </button>
-          </div>
-        </div>
-
-        {/* Mobile Navigation */}
-        {mobileMenuOpen && (
-          <div className="lg:hidden py-4 border-t border-white/10 animate-fade-in">
-            <div className="space-y-2">
-              {navigation.map((item) => {
-                const Icon = item.icon;
-                return (
-                  <Link
-                    key={item.name}
-                    href={item.href}
-                    className={`flex items-center gap-3 px-4 py-3 rounded-xl text-base font-medium transition-all ${
-                      item.current
-                        ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white'
-                        : 'text-gray-400 hover:text-white hover:bg-white/5'
-                    }`}
-                    onClick={() => setMobileMenuOpen(false)}
-                  >
-                    <Icon className="h-5 w-5" />
-                    <span>{item.name}</span>
-                  </Link>
-                );
-              })}
-              
-              {/* Mobile Smart Account Status */}
-              {smartAccountAddress && (
-                <div className="mt-4 pt-4 border-t border-white/10">
-                  <div className="flex items-center gap-3 px-4 py-3 bg-green-500/10 border border-green-500/20 rounded-xl">
-                    <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-                    <div className="flex-1">
-                      <span className="text-sm text-green-400 font-medium block">Smart Account Active</span>
-                      <p className="text-xs text-gray-500 font-mono mt-1 break-all">
-                        {smartAccountAddress}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              )}
+              ))}
             </div>
-          </div>
+          </motion.div>
         )}
-      </nav>
-    </header>
+      </AnimatePresence>
+    </>
   );
 }

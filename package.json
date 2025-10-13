@@ -20,6 +20,7 @@
     "ethers": "^6.15.0",
     "framer-motion": "^12.23.23",
     "graphql": "^16.11.0",
+    "lodash.merge": "^4.6.2",
     "lucide-react": "^0.545.0",
     "mongodb": "^6.20.0",
     "mongoose": "^8.19.1",
@@ -34,6 +35,7 @@
   "devDependencies": {
     "@eslint/eslintrc": "^3",
     "@tailwindcss/postcss": "^4",
+    "@types/lodash.merge": "^4.6.9",
     "@types/mongoose": "^5.11.96",
     "@types/node": "^20",
     "@types/react": "^18.3.3",
