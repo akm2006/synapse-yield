@@ -2,7 +2,6 @@
 import { SessionOptions } from 'iron-session';
 import { SiweMessage } from 'siwe';
 
-// Define the shape of our session data
 export interface SessionData {
   nonce?: string;
   siwe?: SiweMessage;
@@ -13,5 +12,6 @@ export const sessionOptions: SessionOptions = {
   cookieName: 'synapse-yield-session',
   cookieOptions: {
     secure: process.env.NODE_ENV === 'production',
+    path: '/', // <-- THE CRUCIAL FIX: Make the cookie available to all API routes
   },
 };

@@ -1,24 +1,20 @@
 // src/app/api/auth/nonce/route.ts
-import { SiweMessage } from 'siwe';
 import { getIronSession } from 'iron-session';
-import { sessionOptions, SessionData } from '@/lib/session'; // Import SessionData
 import { NextRequest, NextResponse } from 'next/server';
+import { generateNonce } from 'siwe';
+import { sessionOptions, SessionData } from '@/lib/session';
 
 export async function GET(req: NextRequest) {
-  // Pass SessionData as a generic type
-  const session = await getIronSession<SessionData>(req, new NextResponse(), sessionOptions);
+  // Create the response object first
+  const res = new NextResponse();
+  
+  // Pass the real response object to getIronSession
+  const session = await getIronSession<SessionData>(req, res, sessionOptions);
 
-  const nonce = new SiweMessage({
-    domain: new URL(req.url).hostname,
-    address: '0x0000000000000000000000000000000000000000',
-    statement: 'Sign in to Synapse Yield',
-    uri: new URL(req.url).origin,
-    version: '1',
-    chainId: 1,
-  }).nonce;
-
-  session.nonce = nonce;
+  session.nonce = generateNonce();
   await session.save();
 
-  return NextResponse.json({ nonce });
+  // Return the response with the nonce as the body
+  res.headers.set('Content-Type', 'text/plain');
+  return new Response(session.nonce, { status: 200, headers: res.headers });
 }

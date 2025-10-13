@@ -116,14 +116,14 @@ export default function Header() {
                 }}
                 transition={{ duration: 5, repeat: Infinity, repeatType: 'mirror' }}
               >
-                <Image
-                  src="/logo.png"
-                  alt="Synapse Yield Logo"
-                  width={36}
-                  height={36}
-                  className="transition-transform duration-300 group-hover:scale-110"
-                  style={{ height: 'auto' }} // Ensure aspect ratio is preserved
-                />
+<Image
+  src="/logo.png"
+  alt="Synapse Yield Logo"
+  width={36}
+  height={36}
+  className="transition-transform duration-300 group-hover:scale-110"
+  style={{ height: 'auto' }} // Ensure this style is applied
+/>
               </motion.div>
               <div className="hidden md:block">
                 <h1 className="text-xl font-bold text-white/90 tracking-tight">

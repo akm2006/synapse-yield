@@ -1,4 +1,3 @@
-// src/providers/AuthProvider.tsx
 'use client';
 
 import {
@@ -11,7 +10,6 @@ import {
 } from 'react';
 import { useAccount, useSignMessage, useDisconnect } from 'wagmi';
 import { SiweMessage } from 'siwe';
-import { monadTestnet } from '@/lib/smartAccountClient';
 
 interface AuthContextType {
   user: SiweMessage | null;
@@ -33,8 +31,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const fetchUser = useCallback(async () => {
     try {
       const res = await fetch('/api/auth/me');
+      const userData = await res.json();
       if (res.ok) {
-        const userData = await res.json();
         setUser(userData);
       } else {
         setUser(null);
@@ -50,20 +48,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     fetchUser();
   }, [fetchUser]);
 
-  // This useEffect is no longer needed, as signout/disconnect handles it.
-  // useEffect(() => {
-  //   if (!isConnected) {
-  //     setUser(null);
-  //   }
-  // }, [isConnected]);
-
   const signIn = async () => {
     if (!address || !chainId) return;
-
     setIsLoading(true);
     try {
+      // Expect a plain text response from /api/auth/nonce
       const nonceRes = await fetch('/api/auth/nonce');
-      const { nonce } = await nonceRes.json();
+      const nonce = await nonceRes.text();
 
       const message = new SiweMessage({
         domain: window.location.host,
@@ -86,19 +77,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
 
       if (!verifyRes.ok) {
-        // Provide a more specific error
         const errorBody = await verifyRes.text();
         throw new Error(`Error verifying signature: ${errorBody}`);
       }
 
+      // After successful verification, immediately refetch the user state.
       await fetchUser();
     } catch (error) {
       console.error('Sign-in error:', error);
       setUser(null);
-      // Ensure we stop loading even on error
+    } finally {
       setIsLoading(false);
     }
-    // No finally block needed here, it's handled in the catch
   };
 
   const signOut = async () => {

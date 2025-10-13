@@ -30,7 +30,6 @@ export default function Dashboard() {
           const existingDelegation = loadDelegation(smartAccountAddress);
           if (existingDelegation) {
             setDelegation(existingDelegation);
-            addLog('[INFO] Existing delegation loaded from storage');
           }
         } catch (error) {
           console.error('Failed to load existing delegation:', error);
@@ -38,18 +37,18 @@ export default function Dashboard() {
       };
       loadExistingDelegation();
     }
-  }, [isAuthenticated, smartAccountAddress, delegation, addLog]);
+  }, [isAuthenticated, smartAccountAddress, delegation]);
 
   // Loading and Unauthenticated states
   if (isAuthLoading) {
-  return (
-    <div className="min-h-screen flex items-center justify-center text-center">
-      <div>
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-400 mx-auto"></div>
-        <p className="mt-4 text-gray-400">Loading session...</p>
+    return (
+      <div className="min-h-screen flex items-center justify-center text-center">
+        <div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-400 mx-auto"></div>
+          <p className="mt-4 text-gray-400">Loading Session...</p>
+        </div>
       </div>
-    </div>
-  );
+    );
   }
 
   if (!isAuthenticated) {
@@ -58,7 +57,7 @@ export default function Dashboard() {
       <div className="bg-gray-900/50 border border-white/10 rounded-2xl p-8 max-w-md">
         <ShieldExclamationIcon className="h-16 w-16 mx-auto text-yellow-400 mb-4" />
         <h2 className="text-2xl font-bold text-white">Authentication Required</h2>
-        <p className="text-gray-400 mt-2 mb-6">Please connect your wallet and sign in using the button in the header to access your dashboard.</p>
+  <p className="text-gray-400 mt-2 mb-6">Please connect your wallet and sign in to access your dashboard.</p>
       </div>
     </div>
   );
