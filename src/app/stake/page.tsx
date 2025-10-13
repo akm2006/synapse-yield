@@ -7,6 +7,7 @@ import { useSSEStream } from '@/hooks/useSSEStream';
 import { useTransactionLogger } from '@/components/TransactionLogger';
 import TransactionLogger from '@/components/TransactionLogger';
 import type { Delegation } from "@metamask/delegation-toolkit";
+import { useAuth } from '@/providers/AuthProvider'; // Import useAuth
 import { ArrowPathIcon, BoltIcon, ClockIcon } from '@heroicons/react/24/outline';
 
 export default function StakingPage() {
@@ -14,8 +15,10 @@ export default function StakingPage() {
   const { balances, fetchBalances } = useBalances(smartAccountAddress);
   const { generateOpId, openStream } = useSSEStream();
   const { logs, addLog, clearLogs } = useTransactionLogger();
-  
-  const [delegation, setDelegation] = useState<Delegation | null>(null);
+  const { isAuthenticated } = useAuth();
+
+  // This state now only tracks if a delegation *exists*
+  const [hasDelegation, setHasDelegation] = useState(false);
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<'magma' | 'kintsu'>('magma');
   const [amounts, setAmounts] = useState({
@@ -28,24 +31,25 @@ export default function StakingPage() {
   });
 
   useEffect(() => {
-    if (smartAccountAddress && !delegation) {
-      const loadExistingDelegation = async () => {
+    // NEW LOGIC: Check if a delegation exists on the backend
+    const checkDelegationStatus = async () => {
+      if (isAuthenticated && smartAccountAddress) {
         try {
-          const { loadDelegation } = await import('@/utils/delegation');
-          const existingDelegation = loadDelegation(smartAccountAddress);
-          if (existingDelegation) {
-            setDelegation(existingDelegation);
+          const res = await fetch('/api/delegation/get'); // endpoint should return { hasDelegation: boolean }
+          if (res.ok) {
+            const data = await res.json();
+            setHasDelegation(!!data.hasDelegation);
           }
         } catch (error) {
-          console.error('Failed to load delegation:', error);
+          console.error('Failed to check delegation status:', error);
         }
-      };
-      loadExistingDelegation();
-    }
-  }, [smartAccountAddress, delegation]);
+      }
+    };
+    checkDelegationStatus();
+  }, [isAuthenticated, smartAccountAddress]);
 
   const handleStakeMagma = async () => {
-    if (!smartAccountAddress || !delegation || !amounts.magmaStake) {
+    if (!smartAccountAddress || !hasDelegation || !amounts.magmaStake) {
       return addLog('[ERROR] Missing requirements');
     }
 
@@ -62,7 +66,6 @@ export default function StakingPage() {
           userAddress: smartAccountAddress,
           operation: 'stake-magma',
           amount: amounts.magmaStake,
-          delegation
         }),
       });
 
@@ -83,7 +86,7 @@ export default function StakingPage() {
   };
 
   const handleUnstakeMagma = async () => {
-    if (!smartAccountAddress || !delegation || !amounts.magmaUnstake) {
+    if (!smartAccountAddress || !hasDelegation || !amounts.magmaUnstake) {
       return addLog('[ERROR] Missing requirements');
     }
 
@@ -100,7 +103,6 @@ export default function StakingPage() {
           userAddress: smartAccountAddress,
           operation: 'unstake-magma',
           amount: amounts.magmaUnstake,
-          delegation
         }),
       });
 
@@ -121,7 +123,7 @@ export default function StakingPage() {
   };
 
   const handleStakeKintsu = async () => {
-    if (!smartAccountAddress || !delegation || !amounts.kintsuStake) {
+    if (!smartAccountAddress || !hasDelegation || !amounts.kintsuStake) {
       return addLog('[ERROR] Missing requirements');
     }
 
@@ -142,11 +144,10 @@ export default function StakingPage() {
           userAddress: smartAccountAddress,
           operation: 'stake-kintsu',
           amount: amounts.kintsuStake,
-          delegation
         }),
-      });
+  });
 
-      const result = await response.json();
+  const result = await response.json();
       if (!result.success) throw new Error(result.error);
 
       const lastOp = result.operations?.[result.operations.length - 1];
@@ -163,7 +164,7 @@ export default function StakingPage() {
   };
 
   const handleInstantUnstakeKintsu = async () => {
-    if (!smartAccountAddress || !delegation || !amounts.kintsuUnstake) {
+    if (!smartAccountAddress || !hasDelegation || !amounts.kintsuUnstake) {
       return addLog('[ERROR] Missing requirements');
     }
 
@@ -187,11 +188,10 @@ export default function StakingPage() {
           fee: 2500,
           recipient: smartAccountAddress,
           unwrap: true,
-          delegation
         }),
-      });
+  });
 
-      const result = await response.json();
+  const result = await response.json();
       if (!result.success) throw new Error(result.error);
 
       await fetchBalances(false);
@@ -205,7 +205,7 @@ export default function StakingPage() {
   };
 
   const handleRequestUnlock = async () => {
-    if (!smartAccountAddress || !delegation || !amounts.kintsuUnlock) {
+    if (!smartAccountAddress || !hasDelegation || !amounts.kintsuUnlock) {
       return addLog('[ERROR] Missing requirements');
     }
 
@@ -222,11 +222,10 @@ export default function StakingPage() {
           userAddress: smartAccountAddress,
           operation: 'kintsu-request-unlock',
           amount: amounts.kintsuUnlock,
-          delegation
         }),
-      });
+  });
 
-      const result = await response.json();
+  const result = await response.json();
       if (!result.success) throw new Error(result.error);
 
       const lastOp = result.operations?.[0];
@@ -243,7 +242,7 @@ export default function StakingPage() {
   };
 
   const handleRedeemUnlock = async () => {
-    if (!smartAccountAddress || !delegation) {
+    if (!smartAccountAddress || !hasDelegation) {
       return addLog('[ERROR] Missing requirements');
     }
 
@@ -260,7 +259,6 @@ export default function StakingPage() {
           userAddress: smartAccountAddress,
           receiver: smartAccountAddress,
           operation: 'kintsu-redeem',
-          delegation,
           unlockIndex: amounts.unlockIndex
         }),
       });
@@ -295,7 +293,7 @@ export default function StakingPage() {
     );
   }
 
-  if (!delegation) {
+  if (!hasDelegation) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-950 via-blue-950/50 to-gray-950 flex items-center justify-center">
         <div className="text-center max-w-md">

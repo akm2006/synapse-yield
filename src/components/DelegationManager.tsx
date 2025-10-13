@@ -16,7 +16,7 @@ export default function DelegationManager({
   smartAccountAddress,
   onDelegationCreated,
   isCreating,
-  onLog
+  onLog,
 }: DelegationManagerProps) {
   const { isConnected } = useAccount();
   const { data: walletClient } = useWalletClient();
@@ -26,32 +26,41 @@ export default function DelegationManager({
   const [error, setError] = useState<string | null>(null);
   const [isCreatingDelegation, setIsCreatingDelegation] = useState(false);
 
-  // Get delegate account info from backend
   useEffect(() => {
     const fetchDelegateInfo = async () => {
       if (!smartAccountAddress || delegateAddress) return;
-      
+
       setIsLoadingDelegate(true);
       setError(null);
-      
+
       try {
-        onLog('[INFO] Getting delegate account information...');
-        const response = await fetch('/api/delegate/info', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ userAddress: smartAccountAddress })
+        onLog("[INFO] Getting delegate account information...");
+
+        // --- THE FIX IS HERE ---
+        // Use POST and send userAddress in body
+        const response = await fetch("/api/delegate/info", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ userAddress: smartAccountAddress }),
         });
+        // --- END OF FIX ---
 
         if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.error || 'Failed to get delegate info');
+          const errorText = await response.text();
+          try {
+            const errorData = JSON.parse(errorText);
+            throw new Error(errorData.error || "Failed to get delegate info");
+          } catch {
+            throw new Error(errorText || "Failed to get delegate info");
+          }
         }
 
         const { delegateAddress: address } = await response.json();
         setDelegateAddress(address as Address);
         onLog(`[INFO] Delegate account: ${address}`);
       } catch (err) {
-        const errorMsg = err instanceof Error ? err.message : 'Failed to get delegate info';
+        const errorMsg =
+          err instanceof Error ? err.message : "Failed to get delegate info";
         setError(errorMsg);
         onLog(`[ERROR] ${errorMsg}`);
       } finally {
@@ -64,46 +73,48 @@ export default function DelegationManager({
 
   const handleCreateDelegation = async () => {
     if (!smartAccount || !delegateAddress || !walletClient || !smartAccountAddress) {
-      setError('Missing required components for delegation creation');
+      setError("Missing required components for delegation creation");
+      onLog("[ERROR] Prerequisities for delegation not met.");
       return;
     }
 
     setError(null);
     setIsCreatingDelegation(true);
-    onLog('[ACTION] Creating delegation signature...');
+    onLog("[ACTION] Creating delegation signature...");
 
     try {
-      // Import delegation utility
-      const { createStakingDelegation } = await import('@/utils/delegation');
-      
-      // Create delegation
-      onLog('[INFO] Preparing delegation for staking operations...');
+      const { createStakingDelegation } = await import("@/utils/delegation");
+      onLog("[INFO] Preparing delegation for staking operations...");
       const delegation = createStakingDelegation(smartAccount, delegateAddress);
-      
-      // Sign delegation
-      onLog('[ACTION] Please sign the delegation in your wallet...');
+
+      onLog("[ACTION] Please sign the delegation in your wallet...");
       const signature = await smartAccount.signDelegation({ delegation });
-      
+
       const signedDelegation = { ...delegation, signature };
-      
-      // Save delegation locally
-      const { saveDelegation } = await import('@/utils/delegation');
-      saveDelegation(smartAccountAddress, signedDelegation);
-      
-      onLog('[SUCCESS] Delegation created and saved successfully!');
-      onLog('[INFO] You can now perform one-click staking/unstaking operations');
+
+      onLog("[ACTION] Storing delegation securely on the server...");
+      const storeResponse = await fetch("/api/delegation/store", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(signedDelegation),
+      });
+
+      if (!storeResponse.ok) {
+        const errorText = await storeResponse.text();
+        throw new Error(`Failed to store delegation: ${errorText}`);
+      }
+
+      onLog("[SUCCESS] Delegation created and stored securely!");
+      onLog("[INFO] You can now perform one-click staking/unstaking operations");
       onDelegationCreated(signedDelegation);
-      
     } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : 'Failed to create delegation';
+      const errorMsg =
+        err instanceof Error ? err.message : "Failed to create delegation";
       setError(errorMsg);
       onLog(`[ERROR] Delegation creation failed: ${errorMsg}`);
-      
-      // Handle common errors
-      if (errorMsg.includes('User denied')) {
-        onLog('[INFO] Delegation signature was cancelled by user');
-      } else if (errorMsg.includes('network')) {
-        onLog('[INFO] Network error - please check your connection');
+
+      if (errorMsg.includes("User denied")) {
+        onLog("[INFO] Delegation signature was cancelled by user");
       }
     } finally {
       setIsCreatingDelegation(false);
@@ -159,7 +170,7 @@ export default function DelegationManager({
           Setup Delegation for Automated Staking
         </h3>
       </div>
-      
+
       <div className="space-y-6">
         {/* Account Information */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -172,7 +183,6 @@ export default function DelegationManager({
               This account will be managed by delegation
             </div>
           </div>
-          
           {delegateAddress && (
             <div className="bg-gray-800/50 rounded-lg p-4 border border-gray-700/50">
               <label className="text-sm text-gray-400 block mb-1">Delegate Account:</label>
@@ -262,7 +272,6 @@ export default function DelegationManager({
               </>
             )}
           </button>
-          
           <div className="text-center space-y-1">
             <p className="text-xs text-gray-400">
               This will prompt you to sign a delegation in your connected wallet

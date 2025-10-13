@@ -1,41 +1,45 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import type { Address } from 'viem';
 import { useSmartAccount } from '@/hooks/useSmartAccount';
 import { useBalances } from '@/hooks/useBalances';
 import { useTransactionLogger } from '@/components/TransactionLogger';
 import TransactionLogger from '@/components/TransactionLogger';
 import SwapInterface from '@/components/SwapInterface';
 import TokenTransfer from '@/components/TokenTransfer';
-import type { Delegation } from "@metamask/delegation-toolkit";
-import { ArrowsRightLeftIcon, PaperAirplaneIcon } from '@heroicons/react/24/outline';
+import { useAuth } from '@/providers/AuthProvider';
+import {
+  ArrowsRightLeftIcon,
+  PaperAirplaneIcon,
+  ShieldExclamationIcon,
+} from '@heroicons/react/24/outline';
 import { parseUnits } from 'viem';
 
 export default function SwapPage() {
+  const { isAuthenticated, isLoading: isAuthLoading } = useAuth();
   const { smartAccountAddress } = useSmartAccount();
   const { balances, fetchBalances } = useBalances(smartAccountAddress);
   const { logs, addLog, clearLogs } = useTransactionLogger();
-  const [delegation, setDelegation] = useState<Delegation | null>(null);
+
+  const [hasDelegation, setHasDelegation] = useState(false);
+  const [checkingDelegation, setCheckingDelegation] = useState(true);
   const [fundAmount, setFundAmount] = useState('');
   const [activeTab, setActiveTab] = useState<'swap' | 'transfer' | 'fund'>('swap');
 
   useEffect(() => {
-    if (smartAccountAddress && !delegation) {
-      const loadExistingDelegation = async () => {
-        try {
-          const { loadDelegation } = await import('@/utils/delegation');
-          const existingDelegation = loadDelegation(smartAccountAddress);
-          if (existingDelegation) {
-            setDelegation(existingDelegation);
-          }
-        } catch (error) {
-          console.error('Failed to load delegation:', error);
-        }
-      };
-      loadExistingDelegation();
+    if (isAuthenticated && smartAccountAddress) {
+      setCheckingDelegation(true);
+      fetch('/api/delegation/status')
+        .then((res) => res.json())
+        .then((data) => {
+          setHasDelegation(data.hasDelegation);
+        })
+        .catch((err) => console.error('Failed to check delegation status', err))
+        .finally(() => setCheckingDelegation(false));
+    } else {
+      setCheckingDelegation(false);
     }
-  }, [smartAccountAddress, delegation]);
+  }, [isAuthenticated, smartAccountAddress]);
 
   const fundSmartAccount = async () => {
     if (!smartAccountAddress) return addLog('[ERROR] Smart Account not ready');
@@ -53,15 +57,11 @@ export default function SwapPage() {
       addLog(`[ACTION] Funding Smart Account: ${fundAmount} MON from ${from}`);
       const txHash = await eth.request({
         method: 'eth_sendTransaction',
-        params: [{
-          from,
-          to: smartAccountAddress,
-          value: '0x' + valueHex,
-        }],
+        params: [{ from, to: smartAccountAddress, value: '0x' + valueHex }],
       });
 
       addLog(`[TX] ${txHash}`);
-      await new Promise(r => setTimeout(r, 1200));
+      await new Promise((r) => setTimeout(r, 1200));
       await fetchBalances(false);
       setFundAmount('');
     } catch (err: any) {
@@ -82,28 +82,38 @@ export default function SwapPage() {
       } catch {
         await eth.request({
           method: 'wallet_addEthereumChain',
-          params: [{
-            chainId: monadHex,
-            chainName: 'Monad Testnet',
-            nativeCurrency: { name: 'MON', symbol: 'MON', decimals: 18 },
-            rpcUrls: [process.env.NEXT_PUBLIC_RPC_URL!],
-            blockExplorerUrls: ['https://testnet.monadexplorer.com'],
-          }],
+          params: [
+            {
+              chainId: monadHex,
+              chainName: 'Monad Testnet',
+              nativeCurrency: { name: 'MON', symbol: 'MON', decimals: 18 },
+              rpcUrls: [process.env.NEXT_PUBLIC_RPC_URL!],
+              blockExplorerUrls: ['https://testnet.monadexplorer.com'],
+            },
+          ],
         });
       }
     }
   };
 
-  if (!smartAccountAddress) {
+  if (isAuthLoading || checkingDelegation) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-950 via-blue-950/50 to-gray-950 flex items-center justify-center">
-        <div className="text-center max-w-md">
-          <div className="text-6xl mb-4">🔒</div>
-          <h2 className="text-2xl font-bold text-white mb-2">Smart Account Required</h2>
-          <p className="text-gray-400 mb-6">Create a smart account to access swap features</p>
-          <a href="/dashboard" className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-xl transition-colors inline-block">
-            Go to Dashboard
-          </a>
+      <div className="min-h-screen flex items-center justify-center text-center">
+        <div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-400 mx-auto"></div>
+          <p className="mt-4 text-gray-400">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen flex items-center justify-center text-center p-4">
+        <div className="bg-gray-900/50 border border-white/10 rounded-2xl p-8 max-w-md">
+          <ShieldExclamationIcon className="h-16 w-16 mx-auto text-yellow-400 mb-4" />
+          <h2 className="text-2xl font-bold text-white">Authentication Required</h2>
+          <p className="text-gray-400 mt-2 mb-6">Please sign in to access token operations.</p>
         </div>
       </div>
     );
@@ -111,12 +121,11 @@ export default function SwapPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-950 via-blue-950/50 to-gray-950">
-      {/* Header */}
       <div className="border-b border-white/10 bg-white/5 backdrop-blur-sm">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="py-8">
             <h1 className="text-4xl font-bold text-white mb-2">Token Operations</h1>
-            <p className="text-gray-400">Swap tokens and manage your assets</p>
+            <p className="text-gray-400">Swap, transfer, and manage your assets</p>
           </div>
         </div>
       </div>
@@ -125,7 +134,6 @@ export default function SwapPage() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Left - Navigation & Balances */}
           <div className="space-y-6">
-            {/* Tab Navigation */}
             <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-2">
               <button
                 onClick={() => setActiveTab('swap')}
@@ -167,8 +175,6 @@ export default function SwapPage() {
                 </div>
               </button>
             </div>
-
-            {/* Quick Balance Overview */}
             <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-6">
               <h3 className="text-lg font-semibold text-white mb-4">Available Balances</h3>
               <div className="space-y-3">
@@ -190,20 +196,6 @@ export default function SwapPage() {
                 ))}
               </div>
             </div>
-
-            {/* Total Portfolio Value */}
-            <div className="bg-gradient-to-r from-blue-500/10 to-purple-500/10 border border-blue-500/20 rounded-2xl p-6">
-              <p className="text-sm text-gray-400 mb-2">Total Portfolio Value</p>
-              <p className="text-3xl font-bold text-white">
-                {(
-                  parseFloat(balances.native || '0') +
-                  parseFloat(balances.kintsu || '0') +
-                  parseFloat(balances.magma || '0') +
-                  parseFloat(balances.wmon || '0')
-                ).toFixed(4)}{' '}
-                <span className="text-lg text-gray-400">MON</span>
-              </p>
-            </div>
           </div>
 
           {/* Center - Main Content Area */}
@@ -215,11 +207,11 @@ export default function SwapPage() {
                   <p className="text-gray-400">Seamlessly swap between tokens and staked positions</p>
                 </div>
                 
-                {!delegation ? (
+                {!hasDelegation ? (
                   <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-xl p-6 text-center">
-                    <p className="text-yellow-400 mb-4">⚠️ Delegation required for swap operations</p>
+                    <p className="text-yellow-400 mb-4">⚠️ Delegation required for swap operations.</p>
                     <a href="/dashboard" className="px-6 py-3 bg-yellow-600 hover:bg-yellow-700 text-white font-medium rounded-xl transition-colors inline-block">
-                      Setup Delegation
+                      Setup Delegation on Dashboard
                     </a>
                   </div>
                 ) : (
@@ -229,7 +221,6 @@ export default function SwapPage() {
                     onLog={addLog}
                     disabled={false}
                     onBalanceRefresh={() => fetchBalances(false)}
-                    delegation={delegation}
                   />
                 )}
               </div>
@@ -321,7 +312,8 @@ export default function SwapPage() {
               </div>
             )}
 
-            {/* Transaction Log */}
+            
+
             <TransactionLogger
               title="Transaction Activity"
               logs={logs}

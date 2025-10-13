@@ -1,18 +1,17 @@
-// src/components/SwapInterface.tsx
 'use client';
-import { useState, useEffect } from 'react';
+
+import { useState, useEffect, useMemo } from 'react';
 import type { Address } from 'viem';
 import { useSSEStream } from '@/hooks/useSSEStream';
-import { useTokenOperations } from '@/hooks/useTokenOperations';
 import type { Balances } from '@/hooks/useBalances';
 import { CONTRACTS } from '@/lib/contracts';
+
 interface SwapInterfaceProps {
   smartAccountAddress: Address | null;
   balances: Balances;
-  onLog: (msg: string) => void;  
+  onLog: (msg: string) => void;
   disabled?: boolean;
   onBalanceRefresh?: () => void;
-  delegation?: any; // Add delegation prop
 }
 
 const TOKEN_INFO = {
@@ -23,6 +22,7 @@ const TOKEN_INFO = {
 };
 
 type TokenKey = keyof typeof TOKEN_INFO;
+
 interface SwapPlan {
   type: 'stake-magma' | 'unstake-magma' | 'stake-kintsu' | 'unstake-kintsu' | 'direct-swap';
   description: string;
@@ -36,7 +36,6 @@ export default function SwapInterface({
   onLog,
   disabled = false,
   onBalanceRefresh,
-  delegation // Add to destructuring
 }: SwapInterfaceProps) {
   const [fromToken, setFromToken] = useState<TokenKey>('sMON');
   const [toToken, setToToken] = useState<TokenKey>('gMON');
@@ -45,10 +44,6 @@ export default function SwapInterface({
   const [isSwapping, setIsSwapping] = useState(false);
 
   const { generateOpId, openStream } = useSSEStream();
-  const {
-    stakeMagma, unstakeMagma, stakeKintsu, unstakeKintsu,
-    directSwap, wrapMon, unwrapWmon
-  } = useTokenOperations();
 
   const TOKEN_ADDRESSES: Record<TokenKey, Address> = {
     MON: '0x0000000000000000000000000000000000000000' as Address,
@@ -71,207 +66,131 @@ export default function SwapInterface({
 
   const analyzeSwap = (): SwapPlan | null => {
     if (fromToken === toToken) return null;
-    if (fromToken === 'MON' && toToken === 'gMON') return {type:'stake-magma',description:'Stake MON to gMON via Magma',steps:['Deposit MON','Receive gMON'],isOptimal:true};
-    if (fromToken === 'gMON' && toToken === 'MON') return {type:'unstake-magma',description:'Unstake gMON to MON via Magma',steps:['Withdraw gMON','Receive MON'],isOptimal:true};
-    if (fromToken === 'MON' && toToken === 'sMON') return {type:'stake-kintsu',description:'Stake MON to sMON via Kintsu',steps:['Deposit MON','Receive sMON'],isOptimal:true};
-    if (fromToken === 'sMON' && toToken === 'MON') return {type:'unstake-kintsu',description:'Instant unstake sMON to MON via DEX',steps:['Swap sMON→WMON','Unwrap WMON'],isOptimal:true};
+    if (fromToken === 'MON' && toToken === 'gMON') return {type:'stake-magma',description:'Stake MON to gMON',steps:['Deposit MON','Receive gMON'],isOptimal:true};
+    if (fromToken === 'gMON' && toToken === 'MON') return {type:'unstake-magma',description:'Unstake gMON to MON',steps:['Withdraw gMON','Receive MON'],isOptimal:true};
+    if (fromToken === 'MON' && toToken === 'sMON') return {type:'stake-kintsu',description:'Stake MON to sMON',steps:['Deposit MON','Receive sMON'],isOptimal:true};
+    if (fromToken === 'sMON' && toToken === 'MON') return {type:'unstake-kintsu',description:'Unstake sMON to MON',steps:['Swap sMON→WMON','Unwrap WMON'],isOptimal:true};
     if ((fromToken==='sMON'&&toToken==='gMON')||(fromToken==='gMON'&&toToken==='sMON')) {
-      return {type:'direct-swap',description:`Direct swap ${fromToken} ↔ ${toToken}`,steps:['Single swap via PancakeSwap'],isOptimal:true};
+      return {type:'direct-swap',description:`Swap ${fromToken} ↔ ${toToken}`,steps:['Single swap via PancakeSwap'],isOptimal:true};
     }
     if (fromToken==='MON'&&toToken==='WMON') return {type:'direct-swap',description:'Wrap MON to WMON',steps:['Wrap native MON'],isOptimal:true};
     if (fromToken==='WMON'&&toToken==='MON') return {type:'direct-swap',description:'Unwrap WMON to MON',steps:['Unwrap WMON'],isOptimal:true};
     return {type:'direct-swap',description:`Swap ${fromToken} to ${toToken}`,steps:[`Swap via PancakeSwap`],isOptimal:false};
   };
 
-  // Near line 70, update the executeSwap function:
-// --- Start of your changes ---
-const executeSwap = async () => {
-  if (!swapPlan || !amount || +amount <= 0 || !smartAccountAddress || !delegation) {
-    return onLog('[ERROR] Invalid swap parameters or missing delegation');
-  }
+  const executeSwap = async () => {
+    if (!swapPlan || !amount || +amount <= 0 || !smartAccountAddress) {
+      return onLog('[ERROR] Invalid swap parameters.');
+    }
 
-  setIsSwapping(true);
-  const opId = generateOpId();
-  openStream(opId, onLog);
+    setIsSwapping(true);
+    const opId = generateOpId();
+    openStream(opId, onLog);
 
-  try {
-    onLog(`[ACTION] ${swapPlan.description}`);
-    let result;
+    try {
+      onLog(`[ACTION] ${swapPlan.description}`);
+      
+      // Base request body
+      let body: any = {
+        userAddress: smartAccountAddress,
+        amount,
+      };
 
-    switch (swapPlan.type) {
-      case 'stake-magma': 
-        result = await fetch('/api/delegate/execute', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            userAddress: smartAccountAddress,
-            operation: 'stake-magma',
-            amount,
-            delegation
-          }),
-        }).then(r => r.json());
-        break;
-        
-      case 'unstake-magma': 
-        result = await fetch('/api/delegate/execute', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            userAddress: smartAccountAddress,
-            operation: 'unstake-magma',
-            amount,
-            delegation
-          }),
-        }).then(r => r.json());
-        break;
-        
-      case 'stake-kintsu': 
-        result = await fetch('/api/delegate/execute', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            userAddress: smartAccountAddress,
-            operation: 'stake-kintsu',
-            amount,
-            receiver: smartAccountAddress,
-            delegation
-          }),
-        }).then(r => r.json());
-        break;
-        
-      case 'unstake-kintsu': {
-        const inWei = BigInt(Math.floor(+amount * 1e18)).toString();
-        const minOut = (BigInt(inWei) * 99n / 100n).toString();
-        result = await fetch('/api/delegate/execute', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            userAddress: smartAccountAddress,
+      // Construct the body based on the swap plan
+      switch (swapPlan.type) {
+        case 'stake-magma': 
+          body.operation = 'stake-magma';
+          break;
+        case 'unstake-magma': 
+          body.operation = 'unstake-magma';
+          break;
+        case 'stake-kintsu': 
+          body.operation = 'stake-kintsu';
+          body.receiver = smartAccountAddress;
+          break;
+        case 'unstake-kintsu': {
+          const inWei = BigInt(Math.floor(+amount * 1e18)).toString();
+          body = {
+            ...body,
             operation: 'kintsu-instant-unstake',
             amountIn: inWei,
-            minOut,
+            minOut: (BigInt(inWei) * 99n / 100n).toString(),
             fee: 2500,
             recipient: smartAccountAddress,
             unwrap: true,
-            delegation
-          }),
-        }).then(r => r.json());
-        break;
-      }
-      
-      case 'direct-swap': {
-        if (fromToken === 'MON' && toToken === 'WMON') {
-          result = await fetch('/api/delegate/execute', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              userAddress: smartAccountAddress,
-              operation: 'wrap-mon',
-              amount,
-              delegation
-            }),
-          }).then(r => r.json());
-        } else if (fromToken === 'WMON' && toToken === 'MON') {
-          result = await fetch('/api/delegate/execute', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              userAddress: smartAccountAddress,
-              operation: 'unwrap-wmon',
-              amount,
-              delegation
-            }),
-          }).then(r => r.json());
-        } else {
-          const fromAddr = TOKEN_ADDRESSES[fromToken];
-          const toAddr = TOKEN_ADDRESSES[toToken];
-          const inWei = BigInt(Math.floor(+amount * 1e18)).toString();
-          const minOut = (BigInt(inWei) * 95n / 100n).toString();
-          const fee = getOptimalFee(fromToken, toToken);
-          
-          result = await fetch('/api/delegate/execute', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              userAddress: smartAccountAddress,
+          };
+          break;
+        }
+        case 'direct-swap': {
+          if (fromToken === 'MON' && toToken === 'WMON') {
+            body.operation = 'wrap-mon';
+          } else if (fromToken === 'WMON' && toToken === 'MON') {
+            body.operation = 'unwrap-wmon';
+          } else {
+            const fromAddr = TOKEN_ADDRESSES[fromToken];
+            const toAddr = TOKEN_ADDRESSES[toToken];
+            const inWei = BigInt(Math.floor(+amount * 1e18)).toString();
+            body = {
+              ...body,
               operation: 'direct-swap',
               fromToken: fromAddr,
               toToken: toAddr,
               amountIn: inWei,
-              minOut,
-              fee,
+              minOut: (BigInt(inWei) * 95n / 100n).toString(),
+              fee: getOptimalFee(fromToken, toToken),
               recipient: smartAccountAddress,
               deadline: Math.floor(Date.now() / 1000) + 1800,
-              delegation
-            }),
-          }).then(r => r.json());
+            };
+          }
+          break;
         }
-        break;
+        default: 
+          throw new Error(`Unknown swap plan type: ${swapPlan.type}`);
       }
+
+      // Execute the request
+      const result = await fetch('/api/delegate/execute', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      }).then(res => res.json());
+
+      if (!result.success) {
+        throw new Error(result.error || 'Swap operation failed');
+      }
+
+      const ops = result.operations ?? [];
+      ops.forEach((op: any, i: number) => {
+          onLog(`[OP-${i + 1}] TX: ${op.txHash}`);
+      });
       
-      default: 
-        throw new Error(`Unknown type ${swapPlan.type}`);
+      onLog(`[SUCCESS] ${swapPlan.description} complete!`);
+      setTimeout(() => onBalanceRefresh?.(), 3000);
+
+    } catch (e: any) {
+      onLog(`[ERROR] Swap failed: ${e.message}`);
+    } finally {
+      setIsSwapping(false);
     }
-
-  if (!result.success) throw new Error(result.error);
-
-const ops = result.operations ?? [];
-
-if (ops.length === 0) {
-  onLog(`[WARN] No operations returned`);
-} else if (ops.length === 1) {
-  const op = ops[0];
-  if (op.userOpHash) onLog(`[UO] ${op.userOpHash}`);
-  if (op.txHash) onLog(`[TX] ${op.txHash}`);
-} else {
-  onLog(`[INFO] Batched ${ops.length} operations`);
-  ops.forEach(
-    (op: { userOpHash?: string; txHash?: string; target?: string }, i: number) => {
-      onLog(`[OP-${i + 1}] target: ${op.target}, userOpHash: ${op.userOpHash}, txHash: ${op.txHash}`);
-    }
-  );
-
-
-}
-
-    
-    onLog(`[SUCCESS] ${swapPlan.description}`);
-    setTimeout(() => onBalanceRefresh?.(), 2000);
-  } catch (e: any) {
-    onLog(`[ERROR] ${swapPlan.description} failed: ${e.message || e}`);
-  } finally {
-    setIsSwapping(false);
-  }
-};
-// --- End of your changes ---
-
+  };
 
   const getMaxBalance = () => {
     switch(fromToken){
       case 'MON': return balances.native;
       case 'sMON': return balances.kintsu;
       case 'gMON': return balances.magma;
-      case 'WMON': return balances.wmon||'0';
+      case 'WMON': return balances.wmon || '0';
       default: return '0';
     }
   };
 
-  useEffect(()=>{setSwapPlan(analyzeSwap())},[fromToken,toToken]);
-
-  if(!smartAccountAddress){
-    return (
-      <div className="bg-gray-800 p-6 rounded-lg">
-        <h3 className="text-lg font-semibold text-white mb-4">Token Swap</h3>
-        <p className="text-gray-400">Create Smart Account first</p>
-      </div>
-    );
-  }
+  useEffect(()=>{ setSwapPlan(analyzeSwap()) }, [fromToken, toToken]);
 
   return (
     <div className="bg-gray-800 p-6 rounded-lg">
       <div className="flex justify-between mb-6">
         <h3 className="text-lg font-semibold text-white">Smart Account Swap</h3>
-        <p className="text-sm text-gray-400">Seamless staking & swapping</p>
+        <p className="text-sm text-gray-400">One-click, gasless swaps</p>
       </div>
       <div className="space-y-4">
         <div>
@@ -314,18 +233,7 @@ if (ops.length === 0) {
         </div>
         {swapPlan && amount && +amount>0 && (
           <div className={`p-4 rounded-lg ${swapPlan.isOptimal?'bg-green-900/20 border border-green-700':'bg-gray-700'}`}>
-            <div className="flex justify-between items-center mb-2">
-              <h4 className="text-white">{swapPlan.description}</h4>
-              {swapPlan.isOptimal && <span className="text-xs bg-green-600 px-2 py-1 rounded">⚡ Optimal</span>}
-            </div>
-            <div className="space-y-2">
-              {swapPlan.steps.map((s,i)=>(
-                <div key={i} className="flex items-start text-sm text-gray-300">
-                  <span className="bg-purple-600 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs mr-3 mt-0.5">{i+1}</span>
-                  <span>{s}</span>
-                </div>
-              ))}
-            </div>
+            <h4 className="text-white">{swapPlan.description}</h4>
           </div>
         )}
         <button onClick={executeSwap}

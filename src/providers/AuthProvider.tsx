@@ -5,6 +5,7 @@ import {
   useContext,
   useState,
   useEffect,
+  useRef, // Import useRef
   ReactNode,
   useCallback,
 } from 'react';
@@ -28,6 +29,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const { signMessageAsync } = useSignMessage();
   const { disconnect } = useDisconnect();
 
+  // --- NEW: Use a ref to track the address ---
+  const previousAddress = useRef<string | undefined>(address);
+
   const fetchUser = useCallback(async () => {
     try {
       const res = await fetch('/api/auth/me');
@@ -47,6 +51,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     fetchUser();
   }, [fetchUser]);
+
+  // --- THE CRUCIAL FIX IS HERE ---
+  useEffect(() => {
+    // Check if the address has changed from a defined value to another defined value
+    if (
+      previousAddress.current &&
+      address &&
+      previousAddress.current !== address
+    ) {
+      console.log('Wallet account switched. Forcing logout.');
+      // Force a logout to clear the old session
+      signOut();
+    }
+    // Update the ref to the new address for the next render
+    previousAddress.current = address;
+  }, [address]);
+  // --- END OF FIX ---
 
   const signIn = async () => {
     if (!address || !chainId) return;

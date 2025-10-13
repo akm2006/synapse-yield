@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import type { Address } from 'viem';
-import type { Delegation } from "@metamask/delegation-toolkit";
+import { useAuth } from '@/providers/AuthProvider';
 import { useSmartAccount } from '@/hooks/useSmartAccount';
 import { useBalances } from '@/hooks/useBalances';
 import { useTransactionLogger } from '@/components/TransactionLogger';
@@ -10,37 +10,40 @@ import SmartAccountManager from '@/components/SmartAccountManager';
 import DelegationManager from "@/components/DelegationManager";
 import BalanceDisplay from '@/components/BalanceDisplay';
 import TransactionLogger from '@/components/TransactionLogger';
-import { CheckCircleIcon, CogIcon, WalletIcon, ArrowPathIcon, ChartBarIcon, ShieldExclamationIcon } from '@heroicons/react/24/outline';
-import { useAuth } from '@/providers/AuthProvider'; // Import useAuth
+import { CheckCircleIcon, CogIcon, WalletIcon, ArrowPathIcon, ChartBarIcon } from '@heroicons/react/24/outline';
 import Link from 'next/link';
 
 export default function Dashboard() {
+  const { isAuthenticated, isLoading: isAuthLoading } = useAuth();
   const { smartAccountAddress, setSmartAccountReady } = useSmartAccount();
   const { balances, fetchBalances } = useBalances(smartAccountAddress);
   const { logs, addLog, clearLogs } = useTransactionLogger();
-  const [delegation, setDelegation] = useState<Delegation | null>(null);
 
-  const { isAuthenticated, isLoading: isAuthLoading } = useAuth();
+  // Delegation state (checked via API)
+  const [hasDelegation, setHasDelegation] = useState(false);
+  const [checkingDelegation, setCheckingDelegation] = useState(true);
 
+  // Check delegation status on backend
   useEffect(() => {
-    if (isAuthenticated && smartAccountAddress && !delegation) {
-      const loadExistingDelegation = async () => {
-        try {
-          const { loadDelegation } = await import('@/utils/delegation');
-          const existingDelegation = loadDelegation(smartAccountAddress);
-          if (existingDelegation) {
-            setDelegation(existingDelegation);
+    if (isAuthenticated && smartAccountAddress) {
+      setCheckingDelegation(true);
+      fetch('/api/delegation/status')
+        .then(res => res.json())
+        .then(data => {
+          setHasDelegation(data.hasDelegation);
+          if (data.hasDelegation) {
+            addLog('[INFO] Verified existing delegation on server.');
           }
-        } catch (error) {
-          console.error('Failed to load existing delegation:', error);
-        }
-      };
-      loadExistingDelegation();
+        })
+        .catch(err => console.error('Failed to check delegation status', err))
+        .finally(() => setCheckingDelegation(false));
+    } else {
+      setCheckingDelegation(false);
     }
-  }, [isAuthenticated, smartAccountAddress, delegation]);
+  }, [isAuthenticated, smartAccountAddress, addLog]);
 
-  // Loading and Unauthenticated states
-  if (isAuthLoading) {
+  // Loading states
+  if (isAuthLoading || checkingDelegation) {
     return (
       <div className="min-h-screen flex items-center justify-center text-center">
         <div>
@@ -51,16 +54,18 @@ export default function Dashboard() {
     );
   }
 
+  // Unauthenticated state
   if (!isAuthenticated) {
-   return (
-    <div className="min-h-screen flex items-center justify-center text-center p-4">
-      <div className="bg-gray-900/50 border border-white/10 rounded-2xl p-8 max-w-md">
-        <ShieldExclamationIcon className="h-16 w-16 mx-auto text-yellow-400 mb-4" />
-        <h2 className="text-2xl font-bold text-white">Authentication Required</h2>
-  <p className="text-gray-400 mt-2 mb-6">Please connect your wallet and sign in to access your dashboard.</p>
+    return (
+      <div className="min-h-screen flex items-center justify-center text-center p-4">
+        <div className="max-w-md bg-white/5 p-8 rounded-2xl border border-white/10">
+          <h2 className="text-2xl font-bold text-white mb-3">Please Log In</h2>
+          <p className="text-gray-400">
+            You must be signed in to access your smart account dashboard.
+          </p>
+        </div>
       </div>
-    </div>
-  );
+    );
   }
 
   return (
@@ -75,8 +80,9 @@ export default function Dashboard() {
         </div>
       </div>
 
+      {/* Main Content */}
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
-        {/* Onboarding Flow */}
+        {/* Onboarding */}
         {!smartAccountAddress && (
           <div className="mb-8">
             <div className="bg-gradient-to-r from-blue-500/10 to-purple-500/10 border border-blue-500/20 rounded-2xl p-8">
@@ -101,7 +107,7 @@ export default function Dashboard() {
         )}
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Left Column - Account Status */}
+          {/* Left Column */}
           <div className="space-y-6">
             {/* Smart Account Status */}
             {smartAccountAddress && (
@@ -122,8 +128,8 @@ export default function Dashboard() {
               </div>
             )}
 
-            {/* Delegation Setup/Status */}
-            {smartAccountAddress && !delegation && (
+            {/* Delegation Manager */}
+            {smartAccountAddress && !hasDelegation && (
               <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-6">
                 <div className="flex items-center gap-3 mb-4">
                   <div className="p-2 bg-purple-500/20 rounded-lg">
@@ -136,8 +142,8 @@ export default function Dashboard() {
                 </div>
                 <DelegationManager
                   smartAccountAddress={smartAccountAddress}
-                  onDelegationCreated={(newDelegation) => {
-                    setDelegation(newDelegation);
+                  onDelegationCreated={() => {
+                    setHasDelegation(true);
                     addLog('[SUCCESS] Delegation setup completed!');
                   }}
                   isCreating={false}
@@ -146,14 +152,15 @@ export default function Dashboard() {
               </div>
             )}
 
-            {smartAccountAddress && delegation && (
+            {/* Delegation Active */}
+            {smartAccountAddress && hasDelegation && (
               <div className="bg-gradient-to-br from-green-500/10 to-emerald-500/10 border border-green-500/20 rounded-2xl p-6">
                 <div className="flex items-center gap-3 mb-3">
                   <CheckCircleIcon className="h-6 w-6 text-green-400" />
                   <h3 className="text-lg font-semibold text-white">Delegation Active</h3>
                 </div>
                 <p className="text-sm text-gray-400 mb-4">
-                  One-click operations enabled via secure delegation
+                  One-click & automated operations are enabled.
                 </p>
                 <div className="flex items-center gap-2 p-3 bg-green-500/10 rounded-lg">
                   <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
@@ -163,7 +170,7 @@ export default function Dashboard() {
             )}
 
             {/* Quick Actions */}
-            {smartAccountAddress && delegation && (
+            {smartAccountAddress && hasDelegation && (
               <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-6">
                 <h3 className="text-lg font-semibold text-white mb-4">Quick Actions</h3>
                 <div className="space-y-3">
@@ -210,54 +217,13 @@ export default function Dashboard() {
             )}
           </div>
 
-          {/* Center Column - Balance & Portfolio */}
+          {/* Center Column */}
           <div className="lg:col-span-2 space-y-6">
             {smartAccountAddress && (
               <>
                 <BalanceDisplay smartAccountAddress={smartAccountAddress} onLog={addLog} />
 
-                {/* Portfolio Overview */}
-                <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-6">
-                  <h3 className="text-xl font-semibold text-white mb-6">Portfolio Overview</h3>
-                  
-                  {/* Total Value */}
-                  <div className="bg-gradient-to-r from-blue-500/10 to-purple-500/10 rounded-xl p-6 mb-6">
-                    <p className="text-sm text-gray-400 mb-2">Total Portfolio Value</p>
-                    <p className="text-4xl font-bold text-white">
-                      {(
-                        parseFloat(balances.native || '0') +
-                        parseFloat(balances.kintsu || '0') +
-                        parseFloat(balances.magma || '0') +
-                        parseFloat(balances.wmon || '0')
-                      ).toFixed(4)}{' '}
-                      <span className="text-2xl text-gray-400">MON</span>
-                    </p>
-                  </div>
-
-                  {/* Asset Breakdown */}
-                  <div className="space-y-3">
-                    <h4 className="text-sm font-medium text-gray-400 mb-3">Asset Distribution</h4>
-                    {[
-                      { name: 'Native MON', value: balances.native, color: 'bg-blue-500', icon: '🔷' },
-                      { name: 'Kintsu (sMON)', value: balances.kintsu, color: 'bg-red-500', icon: '🥩' },
-                      { name: 'Magma (gMON)', value: balances.magma, color: 'bg-purple-500', icon: '🏛️' },
-                      { name: 'Wrapped MON', value: balances.wmon, color: 'bg-orange-500', icon: '🔶' }
-                    ].map((asset, index) => (
-                      <div key={index} className="flex items-center justify-between p-4 bg-white/5 rounded-xl">
-                        <div className="flex items-center gap-3">
-                          <span className="text-2xl">{asset.icon}</span>
-                          <div>
-                            <p className="text-white font-medium">{asset.name}</p>
-                            <p className="text-sm text-gray-400">{parseFloat(asset.value || '0').toFixed(4)} tokens</p>
-                          </div>
-                        </div>
-                        <div className={`h-2 w-24 ${asset.color} rounded-full opacity-50`}></div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Transaction Activity */}
+                {/* Transaction Log */}
                 <TransactionLogger
                   title="Recent Activity"
                   logs={logs}

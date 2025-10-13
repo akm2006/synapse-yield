@@ -1,16 +1,16 @@
-// src/components/YieldOptimizerInterface.tsx
 'use client';
 
 import { useState, useEffect } from 'react';
 import type { Address } from 'viem';
-import { useBalances } from '@/hooks/useBalances'; // Add this import
+import { useBalances } from '@/hooks/useBalances';
 import APYDisplay from './APYDisplay';
 import RebalanceEngine from './RebalanceEngine';
 import { generateSimulatedAPY } from '@/utils/yieldOptimizer';
 
+// CORRECTED: The interface now expects 'hasDelegation'
 interface YieldOptimizerInterfaceProps {
   smartAccountAddress: Address;
-  delegation: any;
+  hasDelegation: boolean;
   onLog: (message: string) => void;
   onBalanceRefresh: () => void;
 }
@@ -26,11 +26,10 @@ interface ProtocolData {
 
 export default function YieldOptimizerInterface({
   smartAccountAddress,
-  delegation,
+  hasDelegation, // CORRECTED: Receive 'hasDelegation'
   onLog,
   onBalanceRefresh
 }: YieldOptimizerInterfaceProps) {
-  // Get real-time balances for APY display
   const { balances } = useBalances(smartAccountAddress);
   
   const [protocolData, setProtocolData] = useState<{
@@ -58,25 +57,24 @@ export default function YieldOptimizerInterface({
   const [lastRebalance, setLastRebalance] = useState<Date | null>(null);
   const [rebalanceCount, setRebalanceCount] = useState(0);
 
-  // Update APYs and balances periodically
   useEffect(() => {
     const updateData = () => {
       setProtocolData(prev => ({
         kintsu: {
           ...prev.kintsu,
-          apy: generateSimulatedAPY(8, 15), // 8-15% range for Kintsu
+          apy: generateSimulatedAPY(8, 15),
           balance: balances.kintsu || '0'
         },
         magma: {
-          ...prev.magma,  
-          apy: generateSimulatedAPY(6, 18), // 6-18% range for Magma
+          ...prev.magma, 
+          apy: generateSimulatedAPY(6, 18),
           balance: balances.magma || '0'
         }
       }));
     };
 
     updateData();
-    const interval = setInterval(updateData, 10000); // Update every 10 seconds
+    const interval = setInterval(updateData, 10000);
 
     return () => clearInterval(interval);
   }, [balances.kintsu, balances.magma]);
@@ -109,7 +107,6 @@ export default function YieldOptimizerInterface({
         </div>
       </div>
 
-      {/* Portfolio Overview */}
       <div className="mb-6 p-4 bg-gray-700 rounded-lg">
         <h3 className="text-lg font-semibold text-white mb-3">Portfolio Overview</h3>
         <div className="text-2xl font-bold text-white mb-2">
@@ -120,19 +117,17 @@ export default function YieldOptimizerInterface({
         </div>
       </div>
 
-      {/* Protocol APY Display */}
       <APYDisplay protocols={protocolData} />
 
-      {/* Rebalance Engine - Updated with simplified props */}
+      {/* CORRECTED: Pass 'hasDelegation' down to the engine */}
       <RebalanceEngine
         smartAccountAddress={smartAccountAddress}
-        delegation={delegation}
+        delegation={hasDelegation}
         onLog={onLog}
         onRebalanceComplete={handleRebalanceComplete}
         disabled={totalValue === 0}
       />
 
-      {/* Information Panel */}
       <div className="mt-6 p-4 bg-blue-900/20 border border-blue-600 rounded-lg">
         <h4 className="text-lg font-semibold text-blue-200 mb-2">
           ℹ️ How It Works
@@ -141,7 +136,6 @@ export default function YieldOptimizerInterface({
           <p>• <strong>Testnet Simulation:</strong> APY values are simulated for demonstration</p>
           <p>• <strong>Rebalance Logic:</strong> Moves funds from larger balance to smaller balance</p>
           <p>• <strong>Real World:</strong> Would compare actual APYs and rebalance to highest yield</p>
-          <p>• <strong>Threshold:</strong> In production, would use 5%+ APY difference trigger</p>
         </div>
       </div>
     </div>

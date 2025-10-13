@@ -25,6 +25,11 @@ import {
   createPaymasterClient,
 } from "viem/account-abstraction";
 import { settleUserOperation } from "@/lib/aaClient";
+// --- NEW IMPORTS ---
+import { getIronSession } from 'iron-session';
+import { sessionOptions, SessionData } from '@/lib/session';
+import dbConnect from '@/lib/db';
+import User from '@/models/User';
 const DELEGATE_PRIVATE_KEY = process.env.DELEGATE_PRIVATE_KEY as Hex;
 const PIMLICO_API_KEY = process.env.PIMLICO_API_KEY!;
 
@@ -246,18 +251,37 @@ async function sendRedeemExecution({
 }
 
 export async function POST(request: NextRequest) {
+  const res = new NextResponse();
+  const session = await getIronSession<SessionData>(request, res, sessionOptions);
+
+  // 1. VERIFY AUTHENTICATION
+  if (!session.siwe) {
+    return new NextResponse('Unauthorized', { status: 401 });
+  }
+
   let body: any;
 
   try {
     body = await request.json();
-    const { userAddress, operation, amount, delegation } = body;
+    // REMOVED: `delegation` is no longer accepted from the client
+    const { userAddress, operation, amount } = body;
 
-    if (!userAddress || !operation || !delegation) {
+    if (!userAddress || !operation) {
       return NextResponse.json(
-        { error: "User address, operation, and delegation are required" },
+        { error: "User address and operation are required" },
         { status: 400 }
       );
     }
+
+    // 2. FETCH USER AND DELEGATION FROM DATABASE
+    await dbConnect();
+    const user = await User.findOne({ address: session.siwe.address });
+
+    if (!user || !user.delegation) {
+        return new NextResponse('Delegation not found for this user. Please create a delegation first.', { status: 403 });
+    }
+
+    const delegation = user.delegation; // Use the delegation from the database
 
     const validOperations = [
       "stake-magma",
