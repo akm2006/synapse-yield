@@ -6,7 +6,8 @@
     "dev": "next dev --turbopack",
     "build": "next build --turbopack",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+"keeper:run": "ts-node --project tsconfig.scripts.json -r tsconfig-paths/register -r dotenv/config src/scripts/keeper.ts"
   },
   "dependencies": {
     "@apollo/client": "^4.0.7",
@@ -31,6 +32,7 @@
     "react-dom": "^18.3.1",
     "rxjs": "^7.8.2",
     "siwe": "^3.0.0",
+    "ts-node": "^10.9.2",
     "viem": "^2.37.9",
     "wagmi": "^2.17.5"
   },
@@ -47,6 +49,7 @@
     "eslint-config-next": "15.5.4",
     "postcss": "^8.5.6",
     "tailwindcss": "^4.1.14",
+    "tsconfig-paths": "^4.2.0",
     "typescript": "^5"
   }
 }

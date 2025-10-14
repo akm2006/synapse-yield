@@ -10,6 +10,7 @@ import SmartAccountManager from '@/components/SmartAccountManager';
 import DelegationManager from "@/components/DelegationManager";
 import BalanceDisplay from '@/components/BalanceDisplay';
 import TransactionLogger from '@/components/TransactionLogger';
+import AutomationManager from '@/components/AutomationManager'; 
 import { CheckCircleIcon, CogIcon, WalletIcon, ArrowPathIcon, ChartBarIcon } from '@heroicons/react/24/outline';
 import Link from 'next/link';
 
@@ -128,6 +129,13 @@ export default function Dashboard() {
               </div>
             )}
 
+            {/* ADD THE NEW COMPONENT HERE */}
+            {smartAccountAddress && (
+              <AutomationManager
+                hasDelegation={hasDelegation}
+                onLog={addLog}
+              />
+            )}
             {/* Delegation Manager */}
             {smartAccountAddress && !hasDelegation && (
               <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-6">

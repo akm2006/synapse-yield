@@ -17,50 +17,72 @@ export function generateSimulatedAPY(min: number, max: number): number {
  * Determine if rebalancing is needed and calculate the action
  * Now moves the entire balance of the larger protocol to the smaller one.
  */
+// src/utils/yieldOptimizer.ts
+
+// ... (generateSimulatedAPY function remains the same) ...
+
 export function determineRebalanceAction(
-  kintsuBalance: string,
-  magmaBalance: string
-): {
-  shouldRebalance: boolean;
-  fromProtocol?: 'kintsu' | 'magma';
-  toProtocol?: 'kintsu' | 'magma';
-  amount?: string;
-  reason?: string;
-} {
-  const kintsuBal = parseFloat(kintsuBalance || '0');
-  const magmaBal  = parseFloat(magmaBalance  || '0');
-  const totalBalance = kintsuBal + magmaBal;
+  kintsuBalanceStr: string | null,
+  magmaBalanceStr: string | null
+) {
+  const kintsuBalance = parseFloat(kintsuBalanceStr || '0');
+  const magmaBalance = parseFloat(magmaBalanceStr || '0');
+  const totalStaked = kintsuBalance + magmaBalance;
 
-  // No rebalance if nothing staked
-  if (totalBalance < 0.001) {
-    return { shouldRebalance: false };
+  // --- NEW LOGIC WITH THRESHOLD ---
+  const THRESHOLD = 0.05; // 5% tolerance
+  const LOWER_BOUND = 0.5 - THRESHOLD; // 45%
+  const UPPER_BOUND = 0.5 + THRESHOLD; // 55%
+
+  if (totalStaked < 0.001) { // Don't rebalance dust
+    return {
+      shouldRebalance: false,
+      fromProtocol: null,
+      toProtocol: null,
+      amount: null,
+      reason: "Total balance too low to rebalance.",
+    };
   }
 
-  // If perfectly balanced, no action
-  if (Math.abs(kintsuBal - magmaBal) < 0.000001) {
-    return { shouldRebalance: false };
+  const kintsuRatio = kintsuBalance / totalStaked;
+
+  let fromProtocol: 'kintsu' | 'magma' | null = null;
+  let toProtocol: 'kintsu' | 'magma' | null = null;
+  let amountToMove = 0;
+
+  // If Kintsu balance is too high (e.g., > 55%)
+  if (kintsuRatio > UPPER_BOUND) {
+    fromProtocol = 'kintsu';
+    toProtocol = 'magma';
+    // Calculate amount needed to move to reach a perfect 50/50 balance
+    amountToMove = kintsuBalance - (totalStaked / 2);
+  } 
+  // If Kintsu balance is too low (e.g., < 45%), which means Magma is too high
+  else if (kintsuRatio < LOWER_BOUND) {
+    fromProtocol = 'magma';
+    toProtocol = 'kintsu';
+    // Calculate amount needed to move to reach a perfect 50/50 balance
+    amountToMove = magmaBalance - (totalStaked / 2);
   }
 
-  // Determine from/to
-  const fromProtocol = kintsuBal > magmaBal ? 'kintsu' : 'magma';
-  const toProtocol   = kintsuBal > magmaBal ? 'magma' : 'kintsu';
-
-  // Move entire balance of the larger protocol
-  const amount = fromProtocol === 'kintsu'
-    ? kintsuBal.toFixed(6)
-    : magmaBal.toFixed(6);
-
-  const difference = Math.abs(kintsuBal - magmaBal);
-  const reason = `${fromProtocol.charAt(0).toUpperCase() + fromProtocol.slice(1)} has ${difference.toFixed(4)} more tokens`;
-
+  if (fromProtocol && amountToMove > 0.001) { // Check if amount is significant
+    return {
+      shouldRebalance: true,
+      fromProtocol,
+      toProtocol,
+      amount: amountToMove.toString(),
+      reason: `Portfolio imbalanced. ${fromProtocol} is at ${(kintsuRatio * 100).toFixed(1)}%. Rebalancing to 50/50.`,
+    };
+  }
+  // --- END OF NEW LOGIC ---
+  
   return {
-    shouldRebalance: true,
-    fromProtocol,
-    toProtocol,
-    amount,
-    reason
+    shouldRebalance: false,
+    fromProtocol: null,
+    toProtocol: null,
+    amount: null,
+    reason: "Portfolio is within the balanced range.",
   };
-
 }
 
 /**

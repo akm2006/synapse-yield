@@ -1,14 +1,16 @@
-// src/models/User.ts
 import mongoose, { Schema, Document, Model } from 'mongoose';
 
 export interface IUser extends Document {
   address: string;
-  delegation?: any; // We'll store the signed delegation here later
+  delegation?: any;
+  automationEnabled: boolean; // Add this new field
 }
 
 const UserSchema: Schema = new Schema({
   address: { type: String, required: true, unique: true, index: true },
   delegation: { type: Object },
+  // Define the new field with a default value of false
+  automationEnabled: { type: Boolean, default: false },
 });
 
 // Prevent model overwrite on hot reloads

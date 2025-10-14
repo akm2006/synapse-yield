@@ -13,7 +13,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: false, error: 'Missing to/amount' }, { status: 400 });
     }
     const value = parseUnits(amount, 18);
-    const hash = await getServerWalletClient.sendTransaction({ to, value });
+  const hash = await getServerWalletClient().sendTransaction({ to, value });
     const receipt = await serverPublicClient.waitForTransactionReceipt({ hash });
     return NextResponse.json({ ok: true, hash, blockNumber: receipt.blockNumber.toString() });
   } catch (e: any) {
