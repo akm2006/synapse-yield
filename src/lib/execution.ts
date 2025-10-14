@@ -324,7 +324,7 @@ export async function executeDelegatedOperation(
   const delegateSA = await toMetaMaskSmartAccount({
     client: publicClient,
     implementation: Implementation.Hybrid,
-    deployParams: [account.address as Address, [] as string[], [], []],
+    deployParams: [account.address as Address, [], [], []],
     deploySalt: "0x" as Address,
     signer: { account },
   });

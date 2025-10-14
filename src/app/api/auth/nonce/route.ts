@@ -5,16 +5,21 @@ import { generateNonce } from 'siwe';
 import { sessionOptions, SessionData } from '@/lib/session';
 
 export async function GET(req: NextRequest) {
-  // Create the response object first
+  // Create the response object first - this will be returned to client
   const res = new NextResponse();
   
-  // Pass the real response object to getIronSession
+  // Pass the response object to getIronSession
   const session = await getIronSession<SessionData>(req, res, sessionOptions);
 
   session.nonce = generateNonce();
   await session.save();
 
-  // Return the response with the nonce as the body
+  // Modify the response body while preserving the Set-Cookie header
   res.headers.set('Content-Type', 'text/plain');
-  return new Response(session.nonce, { status: 200, headers: res.headers });
+  
+  // Return the modified response with the nonce
+  return new NextResponse(session.nonce, {
+    status: 200,
+    headers: res.headers,
+  });
 }

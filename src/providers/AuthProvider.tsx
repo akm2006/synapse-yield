@@ -1,3 +1,4 @@
+// src/providers/AuthProvider.tsx
 'use client';
 
 import {
@@ -5,7 +6,7 @@ import {
   useContext,
   useState,
   useEffect,
-  useRef, // Import useRef
+  useRef,
   ReactNode,
   useCallback,
 } from 'react';
@@ -29,15 +30,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const { signMessageAsync } = useSignMessage();
   const { disconnect } = useDisconnect();
 
-  // --- NEW: Use a ref to track the address ---
-  const previousAddress = useRef<string | undefined>(address);
+  // Ref to track the address to detect changes
+  const addressRef = useRef<string | undefined>(address);
 
+  // Sign out function, callable internally or by user action
+  const signOut = useCallback(async (isInternalCall = false) => {
+    // Always destroy the server session
+    await fetch('/api/auth/logout', { method: 'POST' });
+    // Clear the user state in the app
+    setUser(null);
+    // If this is a user-initiated sign out, disconnect the wallet connector too
+    if (!isInternalCall) {
+      disconnect();
+    }
+  }, [disconnect]);
+
+  // Fetches the user session from the backend and validates it against the current wallet address
   const fetchUser = useCallback(async () => {
     try {
       const res = await fetch('/api/auth/me');
-      const userData = await res.json();
       if (res.ok) {
-        setUser(userData);
+        const userData = await res.json();
+        // **CRITICAL SECURITY CHECK**: Ensure the session user matches the connected wallet address.
+        if (userData.address.toLowerCase() === address?.toLowerCase()) {
+          setUser(userData);
+        } else {
+          // Mismatch found, this is a stale session. Force logout.
+          console.log('Session mismatch detected. Forcing logout.');
+          await signOut(true); // Internal call to prevent wallet disconnection
+        }
       } else {
         setUser(null);
       }
@@ -46,34 +67,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [address, signOut]);
 
-  useEffect(() => {
-    fetchUser();
-  }, [fetchUser]);
-
-  // --- THE CRUCIAL FIX IS HERE ---
-  useEffect(() => {
-    // Check if the address has changed from a defined value to another defined value
-    if (
-      previousAddress.current &&
-      address &&
-      previousAddress.current !== address
-    ) {
-      console.log('Wallet account switched. Forcing logout.');
-      // Force a logout to clear the old session
-      signOut();
-    }
-    // Update the ref to the new address for the next render
-    previousAddress.current = address;
-  }, [address]);
-  // --- END OF FIX ---
-
-  const signIn = async () => {
+  const signIn = useCallback(async () => {
     if (!address || !chainId) return;
     setIsLoading(true);
     try {
-      // Expect a plain text response from /api/auth/nonce
       const nonceRes = await fetch('/api/auth/nonce');
       const nonce = await nonceRes.text();
 
@@ -98,29 +97,58 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
 
       if (!verifyRes.ok) {
-        const errorBody = await verifyRes.text();
-        throw new Error(`Error verifying signature: ${errorBody}`);
+        throw new Error('Error verifying signature');
       }
 
-      // After successful verification, immediately refetch the user state.
-      await fetchUser();
+      await fetchUser(); // Refetch user state after successful sign-in
     } catch (error) {
       console.error('Sign-in error:', error);
-      setUser(null);
+      await signOut(true);
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [address, chainId, signMessageAsync, fetchUser, signOut]);
 
-  const signOut = async () => {
-    await fetch('/api/auth/logout', { method: 'POST' });
-    setUser(null);
-    disconnect();
-  };
+  // Main effect to handle auth state changes based on wallet connection and address changes
+  useEffect(() => {
+    const handleAuth = async () => {
+      // Case 1: Wallet is disconnected.
+      if (!isConnected) {
+        if (user) {
+          await signOut(true); // Clear session if user was logged in
+        }
+        setIsLoading(false);
+        addressRef.current = undefined; // Clear the ref
+        return;
+      }
+
+      // Case 2: Wallet is connected, but address is not yet available.
+      if (!address) {
+        setIsLoading(true); // Wait for address
+        return;
+      }
+
+      // Case 3: Address has changed from the previous render.
+      if (addressRef.current && address.toLowerCase() !== addressRef.current.toLowerCase()) {
+        console.log('Wallet account switched. Forcing re-authentication.');
+        await signOut(true); // Force logout of the old session
+      } else {
+        // Case 4: Address is the same or it's the initial load.
+        await fetchUser();
+      }
+      
+      // Update the ref for the next render
+      addressRef.current = address;
+    };
+
+    handleAuth();
+  }, [address, isConnected, fetchUser, signOut]);
+
 
   return (
     <AuthContext.Provider
-      value={{ user, isAuthenticated: !!user, isLoading, signIn, signOut }}
+      // Ensure the signOut exposed to the app triggers a full wallet disconnect
+      value={{ user, isAuthenticated: !!user, isLoading, signIn, signOut: () => signOut(false) }}
     >
       {children}
     </AuthContext.Provider>
