@@ -4,8 +4,9 @@ import { useState, useEffect } from 'react';
 import { useSmartAccount } from '@/hooks/useSmartAccount';
 import { useBalances } from '@/hooks/useBalances';
 import { useSSEStream } from '@/hooks/useSSEStream';
-import { useTransactionLogger } from '@/components/TransactionLogger';
 import TransactionLogger from '@/components/TransactionLogger';
+import { useLogger } from '@/providers/LoggerProvider';
+import { useToasts } from '@/providers/ToastProvider';
 import type { Delegation } from "@metamask/delegation-toolkit";
 import { useAuth } from '@/providers/AuthProvider'; // Import useAuth
 import { ArrowPathIcon, BoltIcon, ClockIcon } from '@heroicons/react/24/outline';
@@ -14,7 +15,10 @@ export default function StakingPage() {
   const { smartAccountAddress } = useSmartAccount();
   const { balances, fetchBalances } = useBalances(smartAccountAddress);
   const { generateOpId, openStream } = useSSEStream();
-  const { logs, addLog, clearLogs } = useTransactionLogger();
+  const { logs, addLog, clearLogs } = useLogger();
+  const { addToast } = useToasts();
+  // Start logger closed; open it only when user clicks
+  const [showLogger, setShowLogger] = useState(false);
   const { isAuthenticated } = useAuth();
 
   // This state now only tracks if a delegation *exists*
@@ -50,12 +54,16 @@ export default function StakingPage() {
 
   const handleStakeMagma = async () => {
     if (!smartAccountAddress || !hasDelegation || !amounts.magmaStake) {
+      addToast({ message: 'Missing requirements for staking.', type: 'error' });
       return addLog('[ERROR] Missing requirements');
     }
 
     const opId = generateOpId();
     openStream(opId, addLog);
     setLoading(true);
+
+    // Immediate UI feedback
+    addToast({ message: `Staking ${amounts.magmaStake} MON...`, type: 'info' });
 
     try {
       addLog(`[ACTION] Staking ${amounts.magmaStake} MON to Magma`);
@@ -77,9 +85,11 @@ export default function StakingPage() {
 
       await fetchBalances(false);
       addLog('[SUCCESS] Magma staking completed!');
+      addToast({ message: 'Stake successful!', type: 'success', txHash: lastOp?.txHash });
       setAmounts(prev => ({ ...prev, magmaStake: '' }));
     } catch (err: any) {
       addLog(`[ERROR] ${err.message}`);
+      addToast({ message: 'Staking failed. Check log for details.', type: 'error' });
     } finally {
       setLoading(false);
     }
@@ -87,12 +97,16 @@ export default function StakingPage() {
 
   const handleUnstakeMagma = async () => {
     if (!smartAccountAddress || !hasDelegation || !amounts.magmaUnstake) {
+      addToast({ message: 'Missing requirements for unstaking.', type: 'error' });
       return addLog('[ERROR] Missing requirements');
     }
 
     const opId = generateOpId();
     openStream(opId, addLog);
     setLoading(true);
+
+    // Immediate UI feedback
+    addToast({ message: `Unstaking ${amounts.magmaUnstake} gMON...`, type: 'info' });
 
     try {
       addLog(`[ACTION] Unstaking ${amounts.magmaUnstake} gMON from Magma`);
@@ -114,9 +128,11 @@ export default function StakingPage() {
 
       await fetchBalances(false);
       addLog('[SUCCESS] Magma unstaking completed!');
+      addToast({ message: 'Unstake successful!', type: 'success', txHash: lastOp?.txHash });
       setAmounts(prev => ({ ...prev, magmaUnstake: '' }));
     } catch (err: any) {
       addLog(`[ERROR] ${err.message}`);
+      addToast({ message: 'Unstaking failed. Check log for details.', type: 'error' });
     } finally {
       setLoading(false);
     }
@@ -124,16 +140,21 @@ export default function StakingPage() {
 
   const handleStakeKintsu = async () => {
     if (!smartAccountAddress || !hasDelegation || !amounts.kintsuStake) {
+      addToast({ message: 'Missing requirements for staking to Kintsu.', type: 'error' });
       return addLog('[ERROR] Missing requirements');
     }
 
     if (parseFloat(amounts.kintsuStake) < 0.01) {
+      addToast({ message: 'Minimum stake is 0.01 MON', type: 'error' });
       return addLog('[ERROR] Minimum stake is 0.01 MON');
     }
 
     const opId = generateOpId();
     openStream(opId, addLog);
     setLoading(true);
+
+    // Immediate UI feedback
+    addToast({ message: `Staking ${amounts.kintsuStake} MON to Kintsu...`, type: 'info' });
 
     try {
       addLog(`[ACTION] Staking ${amounts.kintsuStake} MON to Kintsu`);
@@ -155,9 +176,11 @@ export default function StakingPage() {
 
       await fetchBalances(false);
       addLog('[SUCCESS] Kintsu staking completed!');
+      addToast({ message: 'Stake to Kintsu successful!', type: 'success', txHash: lastOp?.txHash });
       setAmounts(prev => ({ ...prev, kintsuStake: '' }));
     } catch (err: any) {
       addLog(`[ERROR] ${err.message}`);
+      addToast({ message: 'Kintsu staking failed. Check log for details.', type: 'error' });
     } finally {
       setLoading(false);
     }
@@ -165,12 +188,16 @@ export default function StakingPage() {
 
   const handleInstantUnstakeKintsu = async () => {
     if (!smartAccountAddress || !hasDelegation || !amounts.kintsuUnstake) {
+      addToast({ message: 'Missing requirements for instant unstake.', type: 'error' });
       return addLog('[ERROR] Missing requirements');
     }
 
     const opId = generateOpId();
     openStream(opId, addLog);
     setLoading(true);
+
+    // Immediate UI feedback
+    addToast({ message: `Instant unstaking ${amounts.kintsuUnstake} sMON...`, type: 'info' });
 
     try {
       addLog(`[ACTION] Instant unstaking ${amounts.kintsuUnstake} sMON`);
@@ -192,13 +219,18 @@ export default function StakingPage() {
   });
 
   const result = await response.json();
-      if (!result.success) throw new Error(result.error);
+    if (!result.success) throw new Error(result.error);
 
-      await fetchBalances(false);
-      addLog('[SUCCESS] Kintsu instant unstaking completed!');
-      setAmounts(prev => ({ ...prev, kintsuUnstake: '' }));
+    const lastOp = result.operations?.[result.operations.length - 1];
+    if (lastOp?.txHash) addLog(`[TX] ${lastOp.txHash}`);
+
+    await fetchBalances(false);
+    addLog('[SUCCESS] Kintsu instant unstaking completed!');
+    addToast({ message: 'Instant unstake successful!', type: 'success', txHash: lastOp?.txHash });
+    setAmounts(prev => ({ ...prev, kintsuUnstake: '' }));
     } catch (err: any) {
       addLog(`[ERROR] ${err.message}`);
+      addToast({ message: 'Instant unstake failed. Check log for details.', type: 'error' });
     } finally {
       setLoading(false);
     }
@@ -206,12 +238,16 @@ export default function StakingPage() {
 
   const handleRequestUnlock = async () => {
     if (!smartAccountAddress || !hasDelegation || !amounts.kintsuUnlock) {
+      addToast({ message: 'Missing requirements to request unlock.', type: 'error' });
       return addLog('[ERROR] Missing requirements');
     }
 
     const opId = generateOpId();
     openStream(opId, addLog);
     setLoading(true);
+
+    // Immediate UI feedback
+    addToast({ message: `Requesting unlock for ${amounts.kintsuUnlock} sMON...`, type: 'info' });
 
     try {
       addLog(`[ACTION] Requesting unlock for ${amounts.kintsuUnlock} sMON`);
@@ -233,9 +269,11 @@ export default function StakingPage() {
 
       await fetchBalances(false);
       addLog('[SUCCESS] Unlock request submitted!');
+      addToast({ message: 'Unlock request submitted!', type: 'success', txHash: lastOp?.txHash });
       setAmounts(prev => ({ ...prev, kintsuUnlock: '' }));
     } catch (err: any) {
       addLog(`[ERROR] ${err.message}`);
+      addToast({ message: 'Unlock request failed. Check log for details.', type: 'error' });
     } finally {
       setLoading(false);
     }
@@ -243,12 +281,16 @@ export default function StakingPage() {
 
   const handleRedeemUnlock = async () => {
     if (!smartAccountAddress || !hasDelegation) {
+      addToast({ message: 'Missing requirements to redeem unlock.', type: 'error' });
       return addLog('[ERROR] Missing requirements');
     }
 
     const opId = generateOpId();
     openStream(opId, addLog);
     setLoading(true);
+
+    // Immediate UI feedback
+    addToast({ message: `Redeeming unlock index ${amounts.unlockIndex}...`, type: 'info' });
 
     try {
       addLog(`[ACTION] Redeeming unlock index ${amounts.unlockIndex}`);
@@ -271,8 +313,10 @@ export default function StakingPage() {
 
       await fetchBalances(false);
       addLog('[SUCCESS] Unlock redeemed successfully!');
+      addToast({ message: 'Redeem successful!', type: 'success', txHash: lastOp?.txHash });
     } catch (err: any) {
       addLog(`[ERROR] ${err.message}`);
+      addToast({ message: 'Redeem failed. Check log for details.', type: 'error' });
     } finally {
       setLoading(false);
     }
@@ -316,6 +360,25 @@ export default function StakingPage() {
           <div className="py-8">
             <h1 className="text-4xl font-bold text-white mb-2">Staking Operations</h1>
             <p className="text-gray-400">Stake and unstake across Magma and Kintsu protocols</p>
+            <div className="mt-4">
+              <button
+                onClick={() => {
+                  // trigger test toasts: info, success (with example tx), error
+                  addToast({ message: 'This is an info toast (test)', type: 'info' });
+                  addToast({ message: 'This is a success toast (test)', type: 'success', txHash: '0x1234abcd' });
+                  addToast({ message: 'This is an error toast (test)', type: 'error' });
+                }}
+                className="px-3 py-2 mt-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
+              >
+                Test Toasts
+              </button>
+              <button
+                onClick={() => setShowLogger(true)}
+                className="px-3 py-2 mt-2 ml-3 bg-gray-800/60 text-white rounded-lg hover:bg-gray-800"
+              >
+                Show Logs
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -625,11 +688,13 @@ export default function StakingPage() {
 
           {/* Right - Activity Log */}
           <div>
-            <TransactionLogger
-              title="Transaction Activity"
-              logs={logs}
-              onClear={clearLogs}
-            />
+            {showLogger && (
+              <TransactionLogger
+                logs={logs}
+                onClear={clearLogs}
+                onClose={() => setShowLogger(false)}
+              />
+            )}
           </div>
         </div>
       </div>

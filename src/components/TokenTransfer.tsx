@@ -12,6 +12,8 @@ import { createSmartAccountClient } from 'permissionless';
 import { createPimlicoClient, PimlicoClient } from 'permissionless/clients/pimlico';
 import { monadTestnet } from '@/lib/aaClient';
 import { useBalances } from '@/hooks/useBalances'; // Import useBalances
+import { useToasts } from '@/providers/ToastProvider';
+import { useLogger } from '@/providers/LoggerProvider';
 
 const BUNDLER_URL = process.env.NEXT_PUBLIC_PIMLICO_BUNDLER_URL || `https://api.pimlico.io/v2/10143/rpc?apikey=${process.env.NEXT_PUBLIC_PIMLICO_API_KEY}`;
 
@@ -22,14 +24,12 @@ const pimlicoClient: PimlicoClient = createPimlicoClient({
 interface TokenTransferProps {
   smartAccountAddress: Address | null;
   balances: { native: string; kintsu: string; magma: string };
-  onLog: (message: string) => void;
   disabled: boolean;
 }
 
 export default function TokenTransfer({
   smartAccountAddress,
   balances,
-  onLog,
   disabled,
 }: TokenTransferProps) {
   const [recipient, setRecipient] = useState('');
@@ -41,6 +41,8 @@ export default function TokenTransfer({
   const { smartAccount, refreshAccount } = useSmartAccount();
   const { fetchBalances } = useBalances(smartAccountAddress);
   const publicClient = usePublicClient();
+  const { addToast } = useToasts();
+  const { addLog } = useLogger();
 
   const getMaxBalance = () => {
     switch (selectedToken) {
@@ -57,13 +59,15 @@ export default function TokenTransfer({
 
   const handleTransfer = async () => {
     if (!smartAccount || !publicClient) {
-      onLog('[ERROR] Smart Account not ready or client not available');
+      addToast({ message: 'Smart Account or client not ready', type: 'error' });
+      addLog('[ERROR] Smart Account not ready or client not available');
       return;
     }
     // ... (rest of validation)
 
-    setIsTransferring(true);
-    onLog(`[ACTION] Preparing to transfer ${amount} ${selectedToken} to ${recipient}`);
+  setIsTransferring(true);
+  addLog(`[ACTION] Preparing to transfer ${amount} ${selectedToken} to ${recipient}`);
+  addToast({ message: `Sending ${amount} ${selectedToken} to ${recipient}`, type: 'info' });
 
     try {
       const smartAccountClient = createSmartAccountClient({
@@ -94,19 +98,22 @@ export default function TokenTransfer({
         };
       }
 
-      onLog('[ACTION] Please confirm the transaction in your wallet...');
+  addLog('[ACTION] Please confirm the transaction in your wallet...');
+  addToast({ message: 'Please confirm the transaction in your wallet...', type: 'info' });
       const userOpHash = await smartAccountClient.sendTransaction(transactionData);
-      onLog(`[UO] UserOperation sent! Hash: ${userOpHash}`);
+  addLog(`[UO] UserOperation sent! Hash: ${userOpHash}`);
+  addToast({ message: 'UserOperation sent', type: 'info', txHash: userOpHash });
 
-      onLog('[INFO] Waiting for transaction confirmation...');
+    addLog('[INFO] Waiting for transaction confirmation...');
       const receipt = await pimlicoClient.waitForUserOperationReceipt({ hash: userOpHash });
       const txHash = receipt.receipt.transactionHash;
 
       if (receipt.success) {
-        onLog(`[SUCCESS] Transfer confirmed. Tx hash: ${txHash}`);
-        
-        // **THE FIX: Refresh account state and balances after success**
-        onLog('[INFO] Refreshing account state and balances...');
+  addLog(`[SUCCESS] Transfer confirmed. Tx hash: ${txHash}`);
+  addToast({ message: 'Transfer confirmed', type: 'success', txHash });
+
+  // **THE FIX: Refresh account state and balances after success**
+  addLog('[INFO] Refreshing account state and balances...');
         refreshAccount();
         fetchBalances(true); // silent refresh
 
@@ -117,7 +124,8 @@ export default function TokenTransfer({
       setRecipient('');
       setAmount('');
     } catch (err: any) {
-      onLog(`[ERROR] Transfer failed: ${err.message || String(err)}`);
+      addLog(`[ERROR] Transfer failed: ${err.message || String(err)}`);
+      addToast({ message: 'Transfer failed. Check the logs for details.', type: 'error' });
     } finally {
       setIsTransferring(false);
     }

@@ -4,23 +4,23 @@ import { Address } from "viem";
 import { useAccount, useWalletClient } from "wagmi";
 import { useSmartAccount } from "@/hooks/useSmartAccount";
 import type { Delegation } from "@metamask/delegation-toolkit";
+import { useLogger } from '@/providers/LoggerProvider';
 
 interface DelegationManagerProps {
   smartAccountAddress: Address;
   onDelegationCreated: (delegation: Delegation) => void;
   isCreating: boolean;
-  onLog: (message: string) => void;
 }
 
 export default function DelegationManager({
   smartAccountAddress,
   onDelegationCreated,
   isCreating,
-  onLog,
 }: DelegationManagerProps) {
   const { isConnected } = useAccount();
   const { data: walletClient } = useWalletClient();
   const { smartAccount } = useSmartAccount();
+  const { addLog } = useLogger();
   const [delegateAddress, setDelegateAddress] = useState<Address | null>(null);
   const [isLoadingDelegate, setIsLoadingDelegate] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -34,7 +34,7 @@ export default function DelegationManager({
       setError(null);
 
       try {
-        onLog("[INFO] Getting delegate account information...");
+  addLog("[INFO] Getting delegate account information...");
 
         // --- THE FIX IS HERE ---
         // Use POST and send userAddress in body
@@ -56,43 +56,43 @@ export default function DelegationManager({
         }
 
         const { delegateAddress: address } = await response.json();
-        setDelegateAddress(address as Address);
-        onLog(`[INFO] Delegate account: ${address}`);
+  setDelegateAddress(address as Address);
+  addLog(`[INFO] Delegate account: ${address}`);
       } catch (err) {
         const errorMsg =
           err instanceof Error ? err.message : "Failed to get delegate info";
         setError(errorMsg);
-        onLog(`[ERROR] ${errorMsg}`);
+        addLog(`[ERROR] ${errorMsg}`);
       } finally {
         setIsLoadingDelegate(false);
       }
     };
 
     fetchDelegateInfo();
-  }, [smartAccountAddress, delegateAddress, onLog]);
+  }, [smartAccountAddress, delegateAddress, addLog]);
 
   const handleCreateDelegation = async () => {
     if (!smartAccount || !delegateAddress || !walletClient || !smartAccountAddress) {
       setError("Missing required components for delegation creation");
-      onLog("[ERROR] Prerequisities for delegation not met.");
+      addLog("[ERROR] Prerequisities for delegation not met.");
       return;
     }
 
-    setError(null);
-    setIsCreatingDelegation(true);
-    onLog("[ACTION] Creating delegation signature...");
+  setError(null);
+  setIsCreatingDelegation(true);
+  addLog("[ACTION] Creating delegation signature...");
 
     try {
       const { createStakingDelegation } = await import("@/utils/delegation");
-      onLog("[INFO] Preparing delegation for staking operations...");
+      addLog("[INFO] Preparing delegation for staking operations...");
       const delegation = createStakingDelegation(smartAccount, delegateAddress);
 
-      onLog("[ACTION] Please sign the delegation in your wallet...");
+      addLog("[ACTION] Please sign the delegation in your wallet...");
       const signature = await smartAccount.signDelegation({ delegation });
 
       const signedDelegation = { ...delegation, signature };
 
-      onLog("[ACTION] Storing delegation securely on the server...");
+      addLog("[ACTION] Storing delegation securely on the server...");
       const storeResponse = await fetch("/api/delegation/store", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -104,17 +104,17 @@ export default function DelegationManager({
         throw new Error(`Failed to store delegation: ${errorText}`);
       }
 
-      onLog("[SUCCESS] Delegation created and stored securely!");
-      onLog("[INFO] You can now perform one-click staking/unstaking operations");
+      addLog("[SUCCESS] Delegation created and stored securely!");
+      addLog("[INFO] You can now perform one-click staking/unstaking operations");
       onDelegationCreated(signedDelegation);
     } catch (err) {
       const errorMsg =
         err instanceof Error ? err.message : "Failed to create delegation";
       setError(errorMsg);
-      onLog(`[ERROR] Delegation creation failed: ${errorMsg}`);
+      addLog(`[ERROR] Delegation creation failed: ${errorMsg}`);
 
       if (errorMsg.includes("User denied")) {
-        onLog("[INFO] Delegation signature was cancelled by user");
+        addLog("[INFO] Delegation signature was cancelled by user");
       }
     } finally {
       setIsCreatingDelegation(false);

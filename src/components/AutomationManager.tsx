@@ -2,17 +2,19 @@
 
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/providers/AuthProvider';
+import { useLogger } from '@/providers/LoggerProvider';
+import { useToasts } from '@/providers/ToastProvider';
 
 interface AutomationManagerProps {
   hasDelegation: boolean;
-  onLog: (message: string) => void;
 }
 
 export default function AutomationManager({
   hasDelegation,
-  onLog,
 }: AutomationManagerProps) {
   const { isAuthenticated } = useAuth();
+  const { addLog } = useLogger();
+  const { addToast } = useToasts();
   const [isEnabled, setIsEnabled] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -33,8 +35,8 @@ export default function AutomationManager({
   }, [isAuthenticated]);
 
   const handleToggle = async () => {
-    setIsLoading(true);
-    onLog(`[ACTION] ${isEnabled ? 'Disabling' : 'Enabling'} automation...`);
+  setIsLoading(true);
+  addLog(`[ACTION] ${isEnabled ? 'Disabling' : 'Enabling'} automation...`);
 
     try {
       const response = await fetch('/api/automation/toggle', {
@@ -49,9 +51,9 @@ export default function AutomationManager({
       }
 
       setIsEnabled(result.automationEnabled);
-      onLog(`[SUCCESS] Automation is now ${result.automationEnabled ? 'ENABLED' : 'DISABLED'}.`);
+      addLog(`[SUCCESS] Automation is now ${result.automationEnabled ? 'ENABLED' : 'DISABLED'}.`);
     } catch (error: any) {
-      onLog(`[ERROR] ${error.message}`);
+      addLog(`[ERROR] ${error.message}`);
     } finally {
       setIsLoading(false);
     }

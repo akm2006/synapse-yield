@@ -3,8 +3,9 @@
 import { useState, useEffect } from 'react';
 import { useSmartAccount } from '@/hooks/useSmartAccount';
 import { useBalances } from '@/hooks/useBalances';
-import { useTransactionLogger } from '@/components/TransactionLogger';
 import TransactionLogger from '@/components/TransactionLogger';
+import { useLogger } from '@/providers/LoggerProvider';
+import { useToasts } from '@/providers/ToastProvider';
 import YieldOptimizerInterface from '@/components/YieldOptimizerInterface';
 import { useAuth } from '@/providers/AuthProvider';
 import {
@@ -24,7 +25,10 @@ export default function YieldOptimizerPage() {
   const { isAuthenticated, isLoading: isAuthLoading } = useAuth();
   const { smartAccountAddress } = useSmartAccount();
   const { balances, isLoading: balancesLoading, fetchBalances } = useBalances(smartAccountAddress);
-  const { logs, addLog, clearLogs } = useTransactionLogger();
+  const { logs, addLog, clearLogs } = useLogger();
+  const { addToast } = useToasts();
+  // start closed; open only when user clicks the button
+  const [showLogger, setShowLogger] = useState(false);
 
   // State now tracks if a delegation exists on the backend
   const [hasDelegation, setHasDelegation] = useState(false);
@@ -41,9 +45,10 @@ export default function YieldOptimizerPage() {
           setHasDelegation(data.hasDelegation);
           if (data.hasDelegation) {
             addLog('[INFO] Verified existing delegation for optimizer.');
+              try { addToast({ message: 'Delegation verified', type: 'info' }); } catch {}
           }
         })
-        .catch(err => console.error("Failed to check delegation status", err))
+        .catch(err => { console.error("Failed to check delegation status", err); try { addToast({ message: 'Failed to check delegation status', type: 'error' }); } catch {} })
         .finally(() => setCheckingDelegation(false));
     } else if (!isAuthenticated) {
       // If not authenticated, we know there's no delegation to check
@@ -122,6 +127,14 @@ export default function YieldOptimizerPage() {
                 <h1 className="text-4xl font-bold text-white mb-2">Yield Optimizer</h1>
                 <p className="text-gray-400">Automated yield maximization across Monad DeFi protocols</p>
               </div>
+              <div className="ml-auto">
+                <button
+                  onClick={() => setShowLogger(true)}
+                  className="px-3 py-2 bg-gray-800/60 hover:bg-gray-800 text-white rounded-lg text-sm"
+                >
+                  Show Logs
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -199,11 +212,13 @@ export default function YieldOptimizerPage() {
               />
             </div>
 
-            <TransactionLogger
-              title="Yield Optimizer Activity"
-              logs={logs}
-              onClear={clearLogs}
-            />
+            {showLogger && (
+              <TransactionLogger
+                logs={logs}
+                onClear={clearLogs}
+                onClose={() => setShowLogger(false)}
+              />
+            )}
 
             <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-6">
               <h3 className="text-lg font-semibold text-white mb-4">Quick Actions</h3>

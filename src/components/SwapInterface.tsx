@@ -5,6 +5,8 @@ import type { Address } from 'viem';
 import { useSSEStream } from '@/hooks/useSSEStream';
 import type { Balances } from '@/hooks/useBalances';
 import { CONTRACTS } from '@/lib/contracts';
+import { useToasts } from '@/providers/ToastProvider';
+import { useLogger } from '@/providers/LoggerProvider';
 
 interface SwapInterfaceProps {
   smartAccountAddress: Address | null;
@@ -37,6 +39,8 @@ export default function SwapInterface({
   disabled = false,
   onBalanceRefresh,
 }: SwapInterfaceProps) {
+  const { addToast } = useToasts();
+  const { addLog } = useLogger();
   const [fromToken, setFromToken] = useState<TokenKey>('sMON');
   const [toToken, setToToken] = useState<TokenKey>('gMON');
   const [amount, setAmount] = useState('');
@@ -80,7 +84,7 @@ export default function SwapInterface({
 
   const executeSwap = async () => {
     if (!swapPlan || !amount || +amount <= 0 || !smartAccountAddress) {
-      return onLog('[ERROR] Invalid swap parameters.');
+      return addToast({ message: 'Invalid swap parameters.', type: 'error' });
     }
 
     setIsSwapping(true);
@@ -89,6 +93,7 @@ export default function SwapInterface({
 
     try {
       onLog(`[ACTION] ${swapPlan.description}`);
+      addToast({ message: `Executing: ${swapPlan.description}...`, type: 'info' });
       
       // Base request body
       let body: any = {
@@ -163,7 +168,9 @@ export default function SwapInterface({
       ops.forEach((op: any, i: number) => {
           onLog(`[OP-${i + 1}] TX: ${op.txHash}`);
       });
-      
+
+      const lastOp = ops[ops.length - 1];
+      addToast({ message: `${swapPlan.description} complete!`, type: 'success', txHash: lastOp?.txHash });
       onLog(`[SUCCESS] ${swapPlan.description} complete!`);
       setTimeout(() => onBalanceRefresh?.(), 3000);
 

@@ -4,33 +4,39 @@
 import { useState, useEffect } from 'react';
 import type { Address } from 'viem';
 import { createServerSmartAccount } from '@/lib/smartAccountClient';
+import { useLogger } from '@/providers/LoggerProvider';
+import { useToasts } from '@/providers/ToastProvider';
 
 interface SmartAccountManagerProps {
   onSmartAccountReady: (address: Address) => void;
-  onLog: (message: string) => void;
 }
 
-export default function SmartAccountManager({ onSmartAccountReady, onLog }: SmartAccountManagerProps) {
+export default function SmartAccountManager({ onSmartAccountReady }: SmartAccountManagerProps) {
   const [smartAccountAddress, setSmartAccountAddress] = useState<Address | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { addLog } = useLogger();
+  const { addToast } = useToasts();
 
   const handleCreateSmartAccount = async () => {
     setIsCreating(true);
     setError(null);
-    onLog('[INFO] Creating Smart Account...');
+  addLog('[INFO] Creating Smart Account...');
+  addToast({ message: 'Creating Smart Account...', type: 'info' });
 
     try {
       const { smartAccount, address } = await createServerSmartAccount();
       
       setSmartAccountAddress(address);
       onSmartAccountReady(address);
-      onLog(`[SUCCESS] Smart Account created: ${address}`);
-      onLog(`[INFO] Smart Account ready for transactions`);
+  addLog(`[SUCCESS] Smart Account created: ${address}`);
+  addToast({ message: 'Smart Account created!', type: 'success', txHash: address });
+  addLog(`[INFO] Smart Account ready for transactions`);
     } catch (err: any) {
-      const errorMsg = `Failed to create Smart Account: ${err.message}`;
+  const errorMsg = `Failed to create Smart Account: ${err.message}`;
       setError(errorMsg);
-      onLog(`[ERROR] ${errorMsg}`);
+  addLog(`[ERROR] ${errorMsg}`);
+  addToast({ message: errorMsg, type: 'error' });
     } finally {
       setIsCreating(false);
     }

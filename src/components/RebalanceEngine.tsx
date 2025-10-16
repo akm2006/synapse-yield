@@ -6,6 +6,8 @@ import type { Address } from 'viem';
 import { useBalances } from '@/hooks/useBalances';
 import { determineRebalanceAction } from '@/utils/yieldOptimizer';
 import { CONTRACTS } from '@/lib/contracts';
+import { useToasts } from '@/providers/ToastProvider';
+import { useLogger } from '@/providers/LoggerProvider';
 
 interface RebalanceEngineProps {
   smartAccountAddress: Address;
@@ -22,6 +24,8 @@ export default function RebalanceEngine({
   onRebalanceComplete,
   disabled = false
 }: RebalanceEngineProps) {
+  const { addToast } = useToasts();
+  const { addLog } = useLogger();
   const [isRebalancing, setIsRebalancing] = useState(false);
 
   // Fetch real-time balances
@@ -50,10 +54,12 @@ export default function RebalanceEngine({
   const executeRebalance = async () => {
     if (!rebalanceAnalysis.shouldRebalance || !delegation) {
       onLog('[ERROR] Cannot rebalance - missing requirements');
+      addToast({ message: 'Cannot rebalance - missing requirements', type: 'error' });
       return;
     }
     setIsRebalancing(true);
     onLog('[ACTION] Starting migration via direct swap...');
+    addToast({ message: 'Starting migration...', type: 'info' });
 
     try {
       onLog('[INFO] Refreshing balances before execution...');
@@ -121,6 +127,8 @@ export default function RebalanceEngine({
       }
 
       onLog('[SUCCESS] Gas-optimized migration completed!');
+      const lastOp = operations[operations.length - 1];
+      addToast({ message: 'Migration completed!', type: 'success', txHash: lastOp?.txHash });
       setTimeout(async () => {
         onLog('[INFO] Refreshing balances after migration...');
         await fetchBalances(false);
@@ -129,6 +137,7 @@ export default function RebalanceEngine({
 
     } catch (error: any) {
       onLog(`[ERROR] Migration failed: ${error.message}`);
+      addToast({ message: `Migration failed: ${error.message}`, type: 'error' });
     } finally {
       setIsRebalancing(false);
     }

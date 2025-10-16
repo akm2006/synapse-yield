@@ -3,8 +3,8 @@
 import { useState, useEffect } from 'react';
 import { useSmartAccount } from '@/hooks/useSmartAccount';
 import { useBalances } from '@/hooks/useBalances';
-import { useTransactionLogger } from '@/components/TransactionLogger';
-import TransactionLogger from '@/components/TransactionLogger';
+import { useLogger } from '@/providers/LoggerProvider'; // 1. Import the new global logger hook
+import { useToasts } from '@/providers/ToastProvider';
 import SwapInterface from '@/components/SwapInterface';
 import TokenTransfer from '@/components/TokenTransfer';
 import { useAuth } from '@/providers/AuthProvider';
@@ -19,7 +19,8 @@ export default function SwapPage() {
   const { isAuthenticated, isLoading: isAuthLoading } = useAuth();
   const { smartAccountAddress } = useSmartAccount();
   const { balances, fetchBalances } = useBalances(smartAccountAddress);
-  const { logs, addLog, clearLogs } = useTransactionLogger();
+  const { addLog } = useLogger(); // 2. Use the new hook (only 'addLog' is needed here)
+  const { addToast, removeToast } = useToasts();
 
   const [hasDelegation, setHasDelegation] = useState(false);
   const [checkingDelegation, setCheckingDelegation] = useState(true);
@@ -42,30 +43,59 @@ export default function SwapPage() {
   }, [isAuthenticated, smartAccountAddress]);
 
   const fundSmartAccount = async () => {
-    if (!smartAccountAddress) return addLog('[ERROR] Smart Account not ready');
+    if (!smartAccountAddress) {
+      addLog('[ERROR] Smart Account not ready');
+      addToast({ message: 'Smart Account not ready', type: 'error' });
+      return;
+    }
+
+    const eth = (window as any).ethereum;
+    if (!eth) {
+      addLog('[ERROR] No wallet provider found');
+      addToast({ message: 'No wallet provider found', type: 'error' });
+      return;
+    }
+
+    await ensureMonadChain();
+    const [from] = await eth.request({ method: 'eth_requestAccounts' });
+    if (!from) {
+      addLog('[ERROR] No EOA account connected');
+      addToast({ message: 'No wallet account connected', type: 'error' });
+      return;
+    }
+
+    const valueHex = parseUnits(fundAmount || '0', 18).toString(16);
+    if (valueHex === '0') {
+      addLog('[ERROR] Enter a positive amount');
+      addToast({ message: 'Enter a positive amount', type: 'error' });
+      return;
+    }
+
+    addLog(`[ACTION] Funding Smart Account: ${fundAmount} MON from ${from}`);
+    let loadingId: number | null = null;
+
     try {
-      const eth = (window as any).ethereum;
-      if (!eth) return addLog('[ERROR] No wallet provider found');
+      loadingId = addToast({ message: `Sending ${fundAmount} MON to ${smartAccountAddress}...`, type: 'loading', duration: 60_000 });
 
-      await ensureMonadChain();
-      const [from] = await eth.request({ method: 'eth_requestAccounts' });
-      if (!from) return addLog('[ERROR] No EOA account connected');
-
-      const valueHex = parseUnits(fundAmount || '0', 18).toString(16);
-      if (valueHex === '0') return addLog('[ERROR] Enter a positive amount');
-
-      addLog(`[ACTION] Funding Smart Account: ${fundAmount} MON from ${from}`);
       const txHash = await eth.request({
         method: 'eth_sendTransaction',
         params: [{ from, to: smartAccountAddress, value: '0x' + valueHex }],
       });
 
       addLog(`[TX] ${txHash}`);
+      // dismiss loading and show success
+      if (loadingId != null && typeof removeToast === 'function') removeToast(loadingId);
+      addToast({ message: 'Funds sent — transaction submitted', type: 'success', txHash, duration: 8000 });
       await new Promise((r) => setTimeout(r, 1200));
       await fetchBalances(false);
       setFundAmount('');
     } catch (err: any) {
       addLog(`[ERROR] Fund Smart Account: ${err?.message || err}`);
+      // dismiss loading toast if present
+      if (loadingId != null && typeof removeToast === 'function') {
+        try { removeToast(loadingId); } catch {}
+      }
+      addToast({ message: `Funding failed: ${err?.message || String(err)}`, type: 'error' });
     }
   };
 
@@ -239,12 +269,11 @@ export default function SwapPage() {
                     kintsu: balances.kintsu,
                     magma: balances.magma,
                   }}
-                  onLog={addLog}
                   disabled={false}
                 />
               </div>
             )}
-
+            
             {activeTab === 'fund' && (
               <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-8">
                 <div className="mb-6">
@@ -311,14 +340,8 @@ export default function SwapPage() {
                 </div>
               </div>
             )}
-
             
-
-            <TransactionLogger
-              title="Transaction Activity"
-              logs={logs}
-              onClear={clearLogs}
-            />
+            {/* 3. The local TransactionLogger is now removed from the page */}
           </div>
         </div>
       </div>

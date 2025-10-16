@@ -5,12 +5,11 @@ import type { Address } from 'viem';
 import { useAuth } from '@/providers/AuthProvider';
 import { useSmartAccount } from '@/hooks/useSmartAccount';
 import { useBalances } from '@/hooks/useBalances';
-import { useTransactionLogger } from '@/components/TransactionLogger';
+import { useLogger } from '@/providers/LoggerProvider'; // 1. Import the new global logger hook
 import SmartAccountManager from '@/components/SmartAccountManager';
 import DelegationManager from "@/components/DelegationManager";
 import BalanceDisplay from '@/components/BalanceDisplay';
-import TransactionLogger from '@/components/TransactionLogger';
-import AutomationManager from '@/components/AutomationManager'; 
+import AutomationManager from '@/components/AutomationManager';
 import { CheckCircleIcon, CogIcon, WalletIcon, ArrowPathIcon, ChartBarIcon } from '@heroicons/react/24/outline';
 import Link from 'next/link';
 
@@ -18,13 +17,11 @@ export default function Dashboard() {
   const { isAuthenticated, isLoading: isAuthLoading } = useAuth();
   const { smartAccountAddress, setSmartAccountReady } = useSmartAccount();
   const { balances, fetchBalances } = useBalances(smartAccountAddress);
-  const { logs, addLog, clearLogs } = useTransactionLogger();
+  const { addLog } = useLogger(); // 2. Use the new hook
 
-  // Delegation state (checked via API)
   const [hasDelegation, setHasDelegation] = useState(false);
   const [checkingDelegation, setCheckingDelegation] = useState(true);
 
-  // Check delegation status on backend
   useEffect(() => {
     if (isAuthenticated && smartAccountAddress) {
       setCheckingDelegation(true);
@@ -43,7 +40,6 @@ export default function Dashboard() {
     }
   }, [isAuthenticated, smartAccountAddress, addLog]);
 
-  // Loading states
   if (isAuthLoading || checkingDelegation) {
     return (
       <div className="min-h-screen flex items-center justify-center text-center">
@@ -55,7 +51,6 @@ export default function Dashboard() {
     );
   }
 
-  // Unauthenticated state
   if (!isAuthenticated) {
     return (
       <div className="min-h-screen flex items-center justify-center text-center p-4">
@@ -71,7 +66,6 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-950 via-blue-950/50 to-gray-950">
-      {/* Header */}
       <div className="border-b border-white/10 bg-white/5 backdrop-blur-sm">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="py-8">
@@ -81,9 +75,7 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Main Content */}
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
-        {/* Onboarding */}
         {!smartAccountAddress && (
           <div className="mb-8">
             <div className="bg-gradient-to-r from-blue-500/10 to-purple-500/10 border border-blue-500/20 rounded-2xl p-8">
@@ -101,16 +93,13 @@ export default function Dashboard() {
                   setSmartAccountReady(true);
                   addLog(`[INFO] Smart Account ready with address: ${address}`);
                 }}
-                onLog={addLog}
               />
             </div>
           </div>
         )}
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Left Column */}
           <div className="space-y-6">
-            {/* Smart Account Status */}
             {smartAccountAddress && (
               <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-6">
                 <div className="flex items-center gap-3 mb-4">
@@ -129,14 +118,11 @@ export default function Dashboard() {
               </div>
             )}
 
-            {/* ADD THE NEW COMPONENT HERE */}
             {smartAccountAddress && (
               <AutomationManager
                 hasDelegation={hasDelegation}
-                onLog={addLog}
               />
             )}
-            {/* Delegation Manager */}
             {smartAccountAddress && !hasDelegation && (
               <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-6">
                 <div className="flex items-center gap-3 mb-4">
@@ -155,12 +141,10 @@ export default function Dashboard() {
                     addLog('[SUCCESS] Delegation setup completed!');
                   }}
                   isCreating={false}
-                  onLog={addLog}
                 />
               </div>
             )}
 
-            {/* Delegation Active */}
             {smartAccountAddress && hasDelegation && (
               <div className="bg-gradient-to-br from-green-500/10 to-emerald-500/10 border border-green-500/20 rounded-2xl p-6">
                 <div className="flex items-center gap-3 mb-3">
@@ -177,68 +161,25 @@ export default function Dashboard() {
               </div>
             )}
 
-            {/* Quick Actions */}
             {smartAccountAddress && hasDelegation && (
               <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-6">
                 <h3 className="text-lg font-semibold text-white mb-4">Quick Actions</h3>
                 <div className="space-y-3">
-                  <Link
-                    href="/staking"
-                    className="flex items-center justify-between p-4 bg-white/5 hover:bg-white/10 rounded-xl transition-all duration-200 border border-white/10 hover:border-blue-500/50 group"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="p-2 bg-blue-500/20 rounded-lg group-hover:bg-blue-500/30 transition-colors">
-                        <ArrowPathIcon className="h-5 w-5 text-blue-400" />
-                      </div>
-                      <span className="text-white font-medium">Stake & Unstake</span>
-                    </div>
-                    <ChartBarIcon className="h-5 w-5 text-gray-400 group-hover:text-blue-400 transition-colors" />
-                  </Link>
-
-                  <Link
-                    href="/swap"
-                    className="flex items-center justify-between p-4 bg-white/5 hover:bg-white/10 rounded-xl transition-all duration-200 border border-white/10 hover:border-purple-500/50 group"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="p-2 bg-purple-500/20 rounded-lg group-hover:bg-purple-500/30 transition-colors">
-                        <ArrowPathIcon className="h-5 w-5 text-purple-400" />
-                      </div>
-                      <span className="text-white font-medium">Token Swap</span>
-                    </div>
-                    <ChartBarIcon className="h-5 w-5 text-gray-400 group-hover:text-purple-400 transition-colors" />
-                  </Link>
-
-                  <Link
-                    href="/yield-optimizer"
-                    className="flex items-center justify-between p-4 bg-white/5 hover:bg-white/10 rounded-xl transition-all duration-200 border border-white/10 hover:border-green-500/50 group"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="p-2 bg-green-500/20 rounded-lg group-hover:bg-green-500/30 transition-colors">
-                        <ChartBarIcon className="h-5 w-5 text-green-400" />
-                      </div>
-                      <span className="text-white font-medium">Yield Optimizer</span>
-                    </div>
-                    <ChartBarIcon className="h-5 w-5 text-gray-400 group-hover:text-green-400 transition-colors" />
-                  </Link>
+                  {/* Quick Action Links */}
+                  <Link href="/staking" className="flex items-center justify-between p-4 bg-white/5 hover:bg-white/10 rounded-xl transition-all duration-200 border border-white/10 hover:border-blue-500/50 group"><div className="flex items-center gap-3"><div className="p-2 bg-blue-500/20 rounded-lg group-hover:bg-blue-500/30 transition-colors"><ArrowPathIcon className="h-5 w-5 text-blue-400" /></div><span className="text-white font-medium">Stake & Unstake</span></div><ChartBarIcon className="h-5 w-5 text-gray-400 group-hover:text-blue-400 transition-colors" /></Link>
+                  <Link href="/swap" className="flex items-center justify-between p-4 bg-white/5 hover:bg-white/10 rounded-xl transition-all duration-200 border border-white/10 hover:border-purple-500/50 group"><div className="flex items-center gap-3"><div className="p-2 bg-purple-500/20 rounded-lg group-hover:bg-purple-500/30 transition-colors"><ArrowPathIcon className="h-5 w-5 text-purple-400" /></div><span className="text-white font-medium">Token Swap</span></div><ChartBarIcon className="h-5 w-5 text-gray-400 group-hover:text-purple-400 transition-colors" /></Link>
+                  <Link href="/yield-optimizer" className="flex items-center justify-between p-4 bg-white/5 hover:bg-white/10 rounded-xl transition-all duration-200 border border-white/10 hover:border-green-500/50 group"><div className="flex items-center gap-3"><div className="p-2 bg-green-500/20 rounded-lg group-hover:bg-green-500/30 transition-colors"><ChartBarIcon className="h-5 w-5 text-green-400" /></div><span className="text-white font-medium">Yield Optimizer</span></div><ChartBarIcon className="h-5 w-5 text-gray-400 group-hover:text-green-400 transition-colors" /></Link>
                 </div>
               </div>
             )}
           </div>
 
-          {/* Center Column */}
           <div className="lg:col-span-2 space-y-6">
             {smartAccountAddress && (
-              <>
-                <BalanceDisplay smartAccountAddress={smartAccountAddress} onLog={addLog} />
-
-                {/* Transaction Log */}
-                <TransactionLogger
-                  title="Recent Activity"
-                  logs={logs}
-                  onClear={clearLogs}
-                />
-              </>
+              <BalanceDisplay smartAccountAddress={smartAccountAddress} />
             )}
+            
+            {/* 3. The local TransactionLogger is now removed */}
 
             {!smartAccountAddress && (
               <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-12 text-center">

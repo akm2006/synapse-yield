@@ -4,7 +4,7 @@ export const runtime = 'nodejs';
 
 import { NextResponse } from 'next/server';
 import { parseUnits, type Address } from 'viem';
-import { getServerWalletClient, serverPublicClient } from '@/lib/smartAccountClient';
+import { getServerWalletClient, getServerPublicClient } from '@/lib/smartAccountClient';
 
 export async function POST(req: Request) {
   try {
@@ -14,7 +14,7 @@ export async function POST(req: Request) {
     }
     const value = parseUnits(amount, 18);
   const hash = await getServerWalletClient().sendTransaction({ to, value });
-    const receipt = await serverPublicClient.waitForTransactionReceipt({ hash });
+      const receipt = await getServerPublicClient().waitForTransactionReceipt({ hash });
     return NextResponse.json({ ok: true, hash, blockNumber: receipt.blockNumber.toString() });
   } catch (e: any) {
     return NextResponse.json({ ok: false, error: e?.message ?? String(e) }, { status: 500 });
