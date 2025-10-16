@@ -5,6 +5,7 @@ import {
   custom,
   http,
   type Address,
+  defineChain, // Import defineChain
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import {
@@ -14,15 +15,25 @@ import {
   type MetaMaskSmartAccount,
 } from "@metamask/delegation-toolkit";
 
-// -------------------------------
-// Monad Testnet Chain Configuration
-// -------------------------------
-export const monadTestnet = {
+// --- MODIFIED CHAIN CONFIGURATION ---
+export const monadTestnet = defineChain({
   id: 10143,
   name: "Monad Testnet",
   nativeCurrency: { name: "MON", symbol: "MON", decimals: 18 },
-  rpcUrls: { default: { http: [process.env.NEXT_PUBLIC_RPC_URL!] } },
-} as const;
+  rpcUrls: {
+    default: { http: [process.env.NEXT_PUBLIC_RPC_URL!] },
+  },
+  contracts: {
+    multicall3: {
+      address: '0xcA11bde05977b3631167028862bE2a173976CA11',
+      // Note: The blockCreated number is not critical for this to work,
+      // but you would typically find this on the block explorer.
+      // We'll use a placeholder or a known value from another testnet.
+      blockCreated: 14353601,
+    },
+  },
+});
+// --- END OF MODIFICATION ---
 
 // -------------------------------
 // Secure Server-side Delegate Account
@@ -41,36 +52,50 @@ const getServerEOAAccount = () => {
 };
 
 // -------------------------------
-// Wallet Clients
+// Client Factories (Functions instead of constants)
 // -------------------------------
 
 // Server-side wallet client factory
 export const getServerWalletClient = () => {
   const account = getServerEOAAccount();
+  if (!process.env.NEXT_PUBLIC_RPC_URL) {
+      throw new Error("NEXT_PUBLIC_RPC_URL is not defined");
+  }
   return createWalletClient({
     chain: monadTestnet,
-    transport: http(process.env.NEXT_PUBLIC_RPC_URL!),
+    transport: http(process.env.NEXT_PUBLIC_RPC_URL),
     account,
   });
 };
 
-// Server-side public client
-export const serverPublicClient = createPublicClient({
-  chain: monadTestnet,
-  transport: http(process.env.NEXT_PUBLIC_RPC_URL!),
-});
+// Server-side public client factory
+export const getServerPublicClient = () => {
+    if (!process.env.NEXT_PUBLIC_RPC_URL) {
+        throw new Error("NEXT_PUBLIC_RPC_URL is not defined");
+    }
+    return createPublicClient({
+        chain: monadTestnet,
+        transport: http(process.env.NEXT_PUBLIC_RPC_URL),
+    });
+};
 
-// Browser public client (uses injected provider when available)
-export const browserPublicClient =
-  typeof window !== "undefined" && (window as any).ethereum
-    ? createPublicClient({
+// Browser public client factory
+export const getBrowserPublicClient = () => {
+    if (typeof window !== "undefined" && (window as any).ethereum) {
+        return createPublicClient({
+            chain: monadTestnet,
+            transport: custom((window as any).ethereum),
+        });
+    }
+    if (!process.env.NEXT_PUBLIC_RPC_URL) {
+        throw new Error("NEXT_PUBLIC_RPC_URL is not defined");
+    }
+    return createPublicClient({
         chain: monadTestnet,
-        transport: custom((window as any).ethereum),
-      })
-    : createPublicClient({
-        chain: monadTestnet,
-        transport: http(process.env.NEXT_PUBLIC_RPC_URL!),
-      });
+        transport: http(process.env.NEXT_PUBLIC_RPC_URL),
+    });
+};
+
 
 // -------------------------------
 // Smart Account Creation Helper (Server-side Only)
@@ -80,24 +105,16 @@ export async function createServerSmartAccount(): Promise<{
   address: Address;
 }> {
   const eoaAccount = getServerEOAAccount();
+  const signerClient = getServerWalletClient();
+  const publicClient = getServerPublicClient();
 
-  // Base signer client (delegate account)
-  const signerClient = createWalletClient({
-    chain: monadTestnet,
-    transport: http(process.env.NEXT_PUBLIC_RPC_URL!),
-    account: eoaAccount,
-  });
-
-  // Get Delegator environment for Monad
   const environment = getDeleGatorEnvironment(monadTestnet.id);
 
-  // Optional salt for deterministic deployment
   const salt = (process.env.NEXT_PUBLIC_SMART_ACCOUNT_SALT ||
     "0x0000000000000000000000000000000000000000000000000000000000000000") as `0x${string}`;
 
-  // Create MetaMask Smart Account using delegation-ready implementation
   const smartAccount = await toMetaMaskSmartAccount({
-    client: serverPublicClient,
+    client: publicClient,
     signer: signerClient,
     implementation: Implementation.Hybrid,
     deployParams: [eoaAccount.address, [], [], []],

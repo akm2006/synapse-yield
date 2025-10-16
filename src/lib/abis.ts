@@ -21,6 +21,14 @@ export const magmaAbi = parseAbi([
   'function withdrawMon(uint256 amount)',
 ]);
 
+export const gMonAbi = parseAbi([
+  
+  'function allowance(address owner, address spender) view returns (uint256)',
+  'function approve(address spender, uint256 value) returns (bool)',
+  'function balanceOf(address account) view returns (uint256)',
+ 
+]);
+
 export const permit2Abi = parseAbi([
   'function allowance(address owner, address token, address spender) view returns (uint160 amount, uint48 expiration, uint48 nonce)',
   'function approve(address token, address spender, uint160 amount, uint48 expiration)',

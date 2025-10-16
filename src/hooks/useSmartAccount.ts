@@ -1,23 +1,29 @@
+// src/hooks/useSmartAccount.ts
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react"; // useCallback added
 import { useAccount, usePublicClient, useWalletClient } from "wagmi";
 import { toMetaMaskSmartAccount, Implementation } from "@metamask/delegation-toolkit";
 import type { Address, WalletClient } from "viem";
 import type { MetaMaskSmartAccount } from "@metamask/delegation-toolkit";
-import { monadTestnet } from "@/lib/smartAccountClient";
 
 export function useSmartAccount() {
   const { address, isConnected } = useAccount();
   const publicClient = usePublicClient();
   const { data: walletClient, isLoading: isWalletLoading } = useWalletClient();
-  
+
   const [smartAccount, setSmartAccount] = useState<MetaMaskSmartAccount | null>(null);
   const [smartAccountAddress, setSmartAccountAddress] = useState<Address | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isReady, setIsReady] = useState(false);
+  // Add a key to force re-rendering/re-creating the account object
+  const [refreshKey, setRefreshKey] = useState(0);
 
-  // Reset state when wallet disconnects
+  // Function to trigger a refresh
+  const refreshAccount = useCallback(() => {
+    setRefreshKey(prev => prev + 1);
+  }, []);
+
   useEffect(() => {
     if (!isConnected) {
       setSmartAccount(null);
@@ -29,13 +35,11 @@ export function useSmartAccount() {
 
   useEffect(() => {
     async function createSmartAccount() {
-      // Reset state
       setSmartAccount(null);
       setSmartAccountAddress(null);
       setError(null);
       setIsReady(false);
       
-      // Check prerequisites
       if (!isConnected || !address || !walletClient || !publicClient || isWalletLoading) {
         return;
       }
@@ -48,14 +52,12 @@ export function useSmartAccount() {
       setIsLoading(true);
       
       try {
-        console.log("Creating smart account for address:", address);
+        console.log("Creating/re-fetching smart account for address:", address);
         
-        // Create signer object
         const signer: { walletClient: WalletClient } = {
           walletClient: walletClient as WalletClient
         };
 
-        // Create MetaMask Smart Account
         const account = await toMetaMaskSmartAccount({
           client: publicClient,
           implementation: Implementation.Hybrid,
@@ -69,29 +71,17 @@ export function useSmartAccount() {
           signer: signer,
         } as any);
 
-        console.log("Smart account created:", account.address);
+        console.log("Smart account instance ready:", account.address);
         
         setSmartAccount(account);
         setSmartAccountAddress(account.address);
         setIsReady(true);
         
       } catch (err) {
-        console.error("Failed to create smart account:", err);
-        
-        // Provide more specific error messages
         let errorMessage = "Unknown error occurred";
         if (err instanceof Error) {
-          if (err.message.includes('network')) {
-            errorMessage = "Network connection error. Please check your RPC connection.";
-          } else if (err.message.includes('chain')) {
-            errorMessage = "Chain configuration error. Please ensure you're connected to Monad testnet.";
-          } else if (err.message.includes('account')) {
-            errorMessage = "Account creation failed. Please try reconnecting your wallet.";
-          } else {
             errorMessage = err.message;
-          }
         }
-        
         setError(errorMessage);
       } finally {
         setIsLoading(false);
@@ -99,14 +89,13 @@ export function useSmartAccount() {
     }
 
     createSmartAccount();
-  }, [address, walletClient, publicClient, isWalletLoading, isConnected]);
+  // Add refreshKey to the dependency array
+  }, [address, walletClient, publicClient, isWalletLoading, isConnected, refreshKey]);
 
-  // Manual setter for ready state (used by SmartAccountManager)
   const setSmartAccountReady = (ready: boolean) => {
     setIsReady(ready);
   };
 
-  // Helper function to check if smart account is deployed
   const checkDeploymentStatus = async (): Promise<boolean> => {
     if (!smartAccount || !publicClient) return false;
     
@@ -126,6 +115,7 @@ export function useSmartAccount() {
     isReady,
     isConnected,
     setSmartAccountReady,
-    checkDeploymentStatus
+    checkDeploymentStatus,
+    refreshAccount, // Expose the refresh function
   };
 }

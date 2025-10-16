@@ -9,10 +9,11 @@ if (!MONGODB_URI) {
   );
 }
 
-let cached = global.mongoose;
+// Use 'as any' to bypass the strict type checking for the global object.
+let cached = (global as any).mongoose;
 
 if (!cached) {
-  cached = global.mongoose = { conn: null, promise: null };
+  cached = (global as any).mongoose = { conn: null, promise: null };
 }
 
 async function dbConnect() {
