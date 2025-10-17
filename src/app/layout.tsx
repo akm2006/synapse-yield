@@ -8,6 +8,7 @@ import { ApolloProviderWrapper } from '@/providers/ApolloProviderWrapper';
 import { LoggerProvider } from '@/providers/LoggerProvider';
 import GlobalLogger from '@/components/layout/GlobalLogger';
 import { ToastProvider } from '@/providers/ToastProvider'; // 1. Import ToastProvider
+import { BalanceProvider } from '@/providers/BalanceProvider'; // 1. Import BalanceProvider
 export const metadata: Metadata = {
   title: 'Synapse Yield - MetaMask Smart Accounts',
   description:
@@ -25,15 +26,17 @@ export default function RootLayout({
       <ApolloProviderWrapper>
           <AppProvider>
             <AuthProvider>
-              <ToastProvider> {/* 2. Wrap LoggerProvider */}
-                <LoggerProvider>
-                  <div className="min-h-screen flex flex-col">
-                    <Header />
-                    <main className="flex-1">{children}</main>
-                  </div>
-                  <GlobalLogger />
-                </LoggerProvider>
-              </ToastProvider>
+             <BalanceProvider>
+                <ToastProvider>
+                  <LoggerProvider>
+                    <div className="min-h-screen flex flex-col">
+                      <Header />
+                      <main className="flex-1">{children}</main>
+                    </div>
+                    <GlobalLogger />
+                  </LoggerProvider>
+                </ToastProvider>
+              </BalanceProvider>
             </AuthProvider>
           </AppProvider>
         </ApolloProviderWrapper>

@@ -28,7 +28,6 @@ export default function YieldOptimizerPage() {
   const { logs, addLog, clearLogs } = useLogger();
   const { addToast } = useToasts();
   // start closed; open only when user clicks the button
-  const [showLogger, setShowLogger] = useState(false);
 
   // State now tracks if a delegation exists on the backend
   const [hasDelegation, setHasDelegation] = useState(false);
@@ -45,7 +44,6 @@ export default function YieldOptimizerPage() {
           setHasDelegation(data.hasDelegation);
           if (data.hasDelegation) {
             addLog('[INFO] Verified existing delegation for optimizer.');
-              try { addToast({ message: 'Delegation verified', type: 'info' }); } catch {}
           }
         })
         .catch(err => { console.error("Failed to check delegation status", err); try { addToast({ message: 'Failed to check delegation status', type: 'error' }); } catch {} })
@@ -128,12 +126,7 @@ export default function YieldOptimizerPage() {
                 <p className="text-gray-400">Automated yield maximization across Monad DeFi protocols</p>
               </div>
               <div className="ml-auto">
-                <button
-                  onClick={() => setShowLogger(true)}
-                  className="px-3 py-2 bg-gray-800/60 hover:bg-gray-800 text-white rounded-lg text-sm"
-                >
-                  Show Logs
-                </button>
+               
               </div>
             </div>
           </div>
@@ -212,13 +205,7 @@ export default function YieldOptimizerPage() {
               />
             </div>
 
-            {showLogger && (
-              <TransactionLogger
-                logs={logs}
-                onClear={clearLogs}
-                onClose={() => setShowLogger(false)}
-              />
-            )}
+            
 
             <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-6">
               <h3 className="text-lg font-semibold text-white mb-4">Quick Actions</h3>

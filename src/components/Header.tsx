@@ -103,8 +103,8 @@ export default function Header() {
         <div
           className={`mx-auto max-w-7xl rounded-2xl transition-all duration-300 ${
             isScrolled
-              ? 'bg-gray-950/70 backdrop-blur-xl border border-white/10 shadow-lg'
-              : 'bg-transparent'
+              ? 'bg-transparent'
+              : 'bg-gray-950/70 backdrop-blur-xl border border-white/10 shadow-lg'
           }`}
         >
           <nav className="flex h-20 items-center justify-between px-4 sm:px-6">
