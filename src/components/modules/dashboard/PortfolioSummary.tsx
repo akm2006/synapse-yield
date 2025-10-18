@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import Image from 'next/image';
 import { PresentationChartBarIcon, ArrowTrendingUpIcon } from '@heroicons/react/24/outline';
 import { Balances } from '@/providers/BalanceProvider';
+import Card from '@/components/common/Card'; // Import the new Card component
 
 interface PortfolioSummaryProps {
   balances: Balances;
@@ -98,12 +99,7 @@ const PortfolioSummary: React.FC<PortfolioSummaryProps> = ({ balances }) => {
   ].filter(item => item.value > 0.0001).sort((a, b) => b.value - a.value);
 
   return (
-    <motion.div
-      initial={{ opacity: 0, scale: 0.98 }}
-      animate={{ opacity: 1, scale: 1 }}
-      transition={{ delay: 0.1, duration: 0.5, ease: 'easeOut' }}
-      className="bg-slate-900/50 backdrop-blur-xl p-6 rounded-2xl border border-white/10 shadow-2xl shadow-black/40"
-    >
+    <Card delay={0.1}>
       <div className="flex justify-between items-center mb-6 pb-4 border-b border-white/10">
         <h3 className="text-xl font-semibold text-white flex items-center gap-3">
           <PresentationChartBarIcon className="h-6 w-6 text-blue-400" />
@@ -155,9 +151,8 @@ const PortfolioSummary: React.FC<PortfolioSummaryProps> = ({ balances }) => {
           </div>
         )}
       </div>
-    </motion.div>
+    </Card>
   );
 };
 
 export default PortfolioSummary;
-

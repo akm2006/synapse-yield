@@ -3,10 +3,11 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Switch } from '@headlessui/react';
-import { CogIcon, ArrowPathIcon } from '@heroicons/react/24/outline';
+import { CogIcon, ArrowPathIcon, ShieldCheckIcon } from '@heroicons/react/24/outline';
 import { useAuth } from '@/providers/AuthProvider';
 import { useLogger } from '@/providers/LoggerProvider';
 import { useToasts } from '@/providers/ToastProvider';
+import Card from '@/components/common/Card'; // <-- Import the new Card component
 
 interface AutomationManagerProps {
   hasDelegation: boolean;
@@ -106,56 +107,41 @@ export default function AutomationManager({ hasDelegation }: AutomationManagerPr
     !hasDelegation || !isAuthenticated || isLoading || isToggling;
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{
-        delay: 0.2,
-        duration: 0.5,
-        ease: 'easeOut',
-      }}
-      className="
-        backdrop-blur-md
-        bg-gray-900/60
-        border border-white/10
-        shadow-lg shadow-black/40
-        hover:border-purple-700/30
-        hover:bg-gray-900/70
-        rounded-2xl
-        p-6
-        transition-all
-        duration-300
-      "
-    >
+    <Card delay={0.3}>
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <CogIcon
-            className={`h-6 w-6 ${
-              isDisabled ? 'text-gray-600' : 'text-purple-300'
-            } ${isToggling ? 'animate-spin' : ''}`}
-          />
+        <div className="flex items-center gap-4">
+          <motion.div
+            animate={{ rotate: isToggling || isLoading ? 360 : 0 }}
+            transition={{ duration: 1, repeat: isToggling || isLoading ? Infinity : 0, ease: 'linear' }}
+          >
+            <CogIcon
+              className={`h-8 w-8 transition-colors ${
+                isDisabled ? 'text-gray-600' : 'text-cyan-600'
+              }`}
+            />
+          </motion.div>
           <div>
             <h3
-              className={`text-lg font-semibold ${
+              className={`text-xl font-semibold transition-colors ${
                 isDisabled ? 'text-gray-500' : 'text-white'
               }`}
             >
               Automated Rebalancing
             </h3>
             <p
-              className={`text-xs ${
+              className={`text-sm transition-colors ${
                 isDisabled ? 'text-gray-600' : 'text-gray-400'
               }`}
             >
               {!hasDelegation
                 ? 'Delegation setup required'
-                : 'Automatically optimize yield between protocols.'}
+                : 'Automatically optimize portfolio yield.'}
             </p>
           </div>
         </div>
 
         {isLoading ? (
-          <ArrowPathIcon className="h-5 w-5 text-gray-500 animate-spin" />
+          <ArrowPathIcon className="h-6 w-6 text-gray-500 animate-spin" />
         ) : (
           <Switch
             checked={isEnabled}
@@ -163,33 +149,39 @@ export default function AutomationManager({ hasDelegation }: AutomationManagerPr
             disabled={isDisabled}
             className={`${
               isEnabled
-                ? 'bg-gradient-to-r from-purple-600 to-indigo-600'
-                : 'bg-gray-700/60'
-            } relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-purple-500/50 disabled:opacity-50 disabled:cursor-not-allowed`}
+                ? 'bg-gradient-to-r from-blue-500/70 to-teal-500/70'
+                : 'bg-slate-800/80'
+            } relative inline-flex h-8 w-14 items-center rounded-full transition-all duration-300 border-2 border-transparent focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-slate-900 disabled:opacity-50 disabled:cursor-not-allowed`}
           >
             <span
               className={`${
-                isEnabled ? 'translate-x-6' : 'translate-x-1'
-              } inline-block h-4 w-4 transform rounded-full bg-white transition-transform shadow`}
-            />
+                isEnabled ? 'translate-x-7' : 'translate-x-1'
+              } inline-flex items-center justify-center h-6 w-6 transform rounded-full bg-white shadow-lg transition-transform duration-300 ease-in-out`}
+            >
+              {isEnabled && <ShieldCheckIcon className="h-4 w-4 text-blue-600"/>}
+            </span>
           </Switch>
         )}
       </div>
 
       {!isLoading && hasDelegation && (
         <div
-          className={`mt-3 text-xs flex items-center gap-1.5 ${
+          className={`mt-4 text-sm font-medium flex items-center gap-2 transition-colors ${
             isEnabled ? 'text-green-400' : 'text-gray-500'
           }`}
         >
-          <span
-            className={`h-2 w-2 rounded-full ${
-              isEnabled ? 'bg-green-400' : 'bg-gray-500'
-            }`}
-          ></span>
+          <motion.span
+            className="h-2.5 w-2.5 rounded-full"
+            animate={{ 
+              backgroundColor: isEnabled ? ['#10B981', '#6EE7B7', '#10B981'] : '#6B7280',
+              boxShadow: isEnabled ? ['0 0 5px #10B981', '0 0 10px #6EE7B7', '0 0 5px #10B981'] : 'none',
+            }}
+            transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
+          />
           {isEnabled ? 'Automation Active' : 'Automation Inactive'}
         </div>
       )}
-    </motion.div>
+    </Card>
   );
 }
+
