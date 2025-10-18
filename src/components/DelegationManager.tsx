@@ -27,23 +27,23 @@ export default function DelegationManager({
   const [isCreatingDelegation, setIsCreatingDelegation] = useState(false);
 
   useEffect(() => {
-    const fetchDelegateInfo = async () => {
-      if (!smartAccountAddress || delegateAddress) return;
+    // Only fetch if we don't already have the delegate address
+    if (delegateAddress || !smartAccountAddress) {
+      return;
+    }
 
+    const fetchDelegateInfo = async () => {
       setIsLoadingDelegate(true);
       setError(null);
 
       try {
-  addLog("[INFO] Getting delegate account information...");
+        console.log("[INFO] Getting delegate account information...");
 
-        // --- THE FIX IS HERE ---
-        // Use POST and send userAddress in body
         const response = await fetch("/api/delegate/info", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ userAddress: smartAccountAddress }),
         });
-        // --- END OF FIX ---
 
         if (!response.ok) {
           const errorText = await response.text();
@@ -56,31 +56,31 @@ export default function DelegationManager({
         }
 
         const { delegateAddress: address } = await response.json();
-  setDelegateAddress(address as Address);
-  addLog(`[INFO] Delegate account: ${address}`);
+        setDelegateAddress(address as Address);
+        console.log(`[INFO] Delegate account: ${address}`);
       } catch (err) {
         const errorMsg =
           err instanceof Error ? err.message : "Failed to get delegate info";
         setError(errorMsg);
-        addLog(`[ERROR] ${errorMsg}`);
+        console.error(`[ERROR] ${errorMsg}`);
       } finally {
         setIsLoadingDelegate(false);
       }
     };
 
     fetchDelegateInfo();
-  }, [smartAccountAddress, delegateAddress, addLog]);
+  }, [smartAccountAddress, delegateAddress]); // Removed addLog from dependencies
 
   const handleCreateDelegation = async () => {
     if (!smartAccount || !delegateAddress || !walletClient || !smartAccountAddress) {
       setError("Missing required components for delegation creation");
-      addLog("[ERROR] Prerequisities for delegation not met.");
+      addLog("[ERROR] Prerequisites for delegation not met.");
       return;
     }
 
-  setError(null);
-  setIsCreatingDelegation(true);
-  addLog("[ACTION] Creating delegation signature...");
+    setError(null);
+    setIsCreatingDelegation(true);
+    addLog("[ACTION] Creating delegation signature...");
 
     try {
       const { createStakingDelegation } = await import("@/utils/delegation");

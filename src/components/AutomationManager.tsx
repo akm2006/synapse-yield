@@ -1,6 +1,9 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { motion } from 'framer-motion';
+import { Switch } from '@headlessui/react';
+import { CogIcon, ArrowPathIcon } from '@heroicons/react/24/outline';
 import { useAuth } from '@/providers/AuthProvider';
 import { useLogger } from '@/providers/LoggerProvider';
 import { useToasts } from '@/providers/ToastProvider';
@@ -9,34 +12,57 @@ interface AutomationManagerProps {
   hasDelegation: boolean;
 }
 
-export default function AutomationManager({
-  hasDelegation,
-}: AutomationManagerProps) {
+export default function AutomationManager({ hasDelegation }: AutomationManagerProps) {
   const { isAuthenticated } = useAuth();
   const { addLog } = useLogger();
-  const { addToast } = useToasts();
+  const { addToast, removeToast } = useToasts();
+
   const [isEnabled, setIsEnabled] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [isToggling, setIsToggling] = useState(false);
 
-  // Fetch the current automation status when the component mounts
   useEffect(() => {
-    if (isAuthenticated) {
+    let isMounted = true;
+
+    if (isAuthenticated && hasDelegation) {
       setIsLoading(true);
       fetch('/api/automation/status')
         .then((res) => res.json())
         .then((data) => {
-          if (data.ok) {
+          if (isMounted && data.ok) {
             setIsEnabled(data.automationEnabled);
           }
         })
-        .catch((err) => console.error(err))
-        .finally(() => setIsLoading(false));
+        .catch((err) => {
+          if (isMounted) {
+            console.error('Failed to fetch automation status:', err);
+            addLog(`[ERROR] Failed to fetch automation status: ${err.message}`);
+          }
+        })
+        .finally(() => {
+          if (isMounted) setIsLoading(false);
+        });
+    } else {
+      setIsEnabled(false);
+      setIsLoading(false);
     }
-  }, [isAuthenticated]);
 
-  const handleToggle = async () => {
-  setIsLoading(true);
-  addLog(`[ACTION] ${isEnabled ? 'Disabling' : 'Enabling'} automation...`);
+    return () => {
+      isMounted = false;
+    };
+  }, [isAuthenticated, hasDelegation, addLog]);
+
+  const handleToggle = async (checked: boolean) => {
+    if (!hasDelegation || !isAuthenticated || isToggling || isLoading) return;
+
+    setIsToggling(true);
+    addLog(`[ACTION] ${isEnabled ? 'Disabling' : 'Enabling'} automation...`);
+
+    const loadingToastId = addToast({
+      message: `${isEnabled ? 'Disabling' : 'Enabling'} automation...`,
+      type: 'loading',
+      duration: 10000,
+    });
 
     try {
       const response = await fetch('/api/automation/toggle', {
@@ -51,54 +77,119 @@ export default function AutomationManager({
       }
 
       setIsEnabled(result.automationEnabled);
-      addLog(`[SUCCESS] Automation is now ${result.automationEnabled ? 'ENABLED' : 'DISABLED'}.`);
+      addLog(
+        `[SUCCESS] Automation is now ${
+          result.automationEnabled ? 'ENABLED' : 'DISABLED'
+        }.`
+      );
+      addToast({
+        message: `Automation ${
+          result.automationEnabled ? 'enabled' : 'disabled'
+        } successfully.`,
+        type: 'success',
+      });
     } catch (error: any) {
       addLog(`[ERROR] ${error.message}`);
+      addToast({
+        message: `Failed to ${isEnabled ? 'disable' : 'enable'} automation.`,
+        type: 'error',
+      });
     } finally {
-      setIsLoading(false);
+      setIsToggling(false);
+      try {
+        removeToast(loadingToastId);
+      } catch {}
     }
   };
 
-  if (!hasDelegation) {
-    return (
-      <div className="bg-yellow-900/20 border border-yellow-500/50 rounded-lg p-6 text-center">
-        <h3 className="text-xl font-semibold text-yellow-400 mb-2">
-          Setup Delegation First
-        </h3>
-        <p className="text-gray-300">
-          You must create a delegation before you can enable automated portfolio
-          balancing.
-        </p>
-      </div>
-    );
-  }
+  const isDisabled =
+    !hasDelegation || !isAuthenticated || isLoading || isToggling;
 
   return (
-    <div className="bg-gray-800 border border-gray-700 rounded-xl p-6 shadow-xl">
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{
+        delay: 0.2,
+        duration: 0.5,
+        ease: 'easeOut',
+      }}
+      className="
+        backdrop-blur-md
+        bg-gray-900/60
+        border border-white/10
+        shadow-lg shadow-black/40
+        hover:border-purple-700/30
+        hover:bg-gray-900/70
+        rounded-2xl
+        p-6
+        transition-all
+        duration-300
+      "
+    >
       <div className="flex items-center justify-between">
-        <div>
-          <h3 className="text-lg font-semibold text-white">
-            Automated Portfolio Balancing
-          </h3>
-          <p className="text-sm text-gray-400 mt-1">
-            Allow the Synapse Agent to automatically rebalance your portfolio.
-          </p>
+        <div className="flex items-center gap-3">
+          <CogIcon
+            className={`h-6 w-6 ${
+              isDisabled ? 'text-gray-600' : 'text-purple-300'
+            } ${isToggling ? 'animate-spin' : ''}`}
+          />
+          <div>
+            <h3
+              className={`text-lg font-semibold ${
+                isDisabled ? 'text-gray-500' : 'text-white'
+              }`}
+            >
+              Automated Rebalancing
+            </h3>
+            <p
+              className={`text-xs ${
+                isDisabled ? 'text-gray-600' : 'text-gray-400'
+              }`}
+            >
+              {!hasDelegation
+                ? 'Delegation setup required'
+                : 'Automatically optimize yield between protocols.'}
+            </p>
+          </div>
         </div>
-        <button
-          onClick={handleToggle}
-          disabled={isLoading}
-          className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 focus:ring-offset-gray-800 ${
-            isEnabled ? 'bg-green-500' : 'bg-gray-600'
+
+        {isLoading ? (
+          <ArrowPathIcon className="h-5 w-5 text-gray-500 animate-spin" />
+        ) : (
+          <Switch
+            checked={isEnabled}
+            onChange={handleToggle}
+            disabled={isDisabled}
+            className={`${
+              isEnabled
+                ? 'bg-gradient-to-r from-purple-600 to-indigo-600'
+                : 'bg-gray-700/60'
+            } relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-purple-500/50 disabled:opacity-50 disabled:cursor-not-allowed`}
+          >
+            <span
+              className={`${
+                isEnabled ? 'translate-x-6' : 'translate-x-1'
+              } inline-block h-4 w-4 transform rounded-full bg-white transition-transform shadow`}
+            />
+          </Switch>
+        )}
+      </div>
+
+      {!isLoading && hasDelegation && (
+        <div
+          className={`mt-3 text-xs flex items-center gap-1.5 ${
+            isEnabled ? 'text-green-400' : 'text-gray-500'
           }`}
         >
           <span
-            aria-hidden="true"
-            className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
-              isEnabled ? 'translate-x-5' : 'translate-x-0'
+            className={`h-2 w-2 rounded-full ${
+              isEnabled ? 'bg-green-400' : 'bg-gray-500'
             }`}
-          />
-        </button>
-      </div>
-    </div>
+          ></span>
+          {isEnabled ? 'Automation Active' : 'Automation Inactive'}
+        </div>
+      )}
+    </motion.div>
   );
 }

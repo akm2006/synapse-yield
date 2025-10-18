@@ -91,23 +91,35 @@ export default function Dashboard() {
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
           
-          {/* Left Column: Step-by-step UI based on state */}
-          <div className="lg:col-span-1 space-y-8">
-            {!smartAccountAddress ? (
-              // Step 1: Create/Derive Smart Account
-              <SmartAccountManager onSmartAccountReady={(address: Address) => setSmartAccountReady(true)} />
-            ) : !hasDelegation ? (
-              // Step 2: Create Delegation
-              <DelegationManager
-                smartAccountAddress={smartAccountAddress}
-                onDelegationCreated={() => setHasDelegation(true)}
-                isCreating={false}
-              />
-            ) : (
-              // Step 3: Show Account Status (All steps done)
-              <AccountStatusPanel smartAccountAddress={smartAccountAddress} hasDelegation={hasDelegation} />
-            )}
-          </div>
+          {/* --- Left Column --- */}
+            <div className="lg:col-span-1 space-y-8">
+                {!smartAccountAddress ? (
+                  // Step 1: Create/Derive Smart Account
+                  <SmartAccountManager onSmartAccountReady={(address: Address) => {
+                      if(setSmartAccountReady) setSmartAccountReady(true);
+                  }} />
+                ) : !hasDelegation ? (
+                  // Step 2: Create Delegation
+                  <DelegationManager
+                      smartAccountAddress={smartAccountAddress}
+                      onDelegationCreated={() => setHasDelegation(true)}
+                      isCreating={false}
+                  />
+                ) : (
+                  // Step 3: Show Account Status and Automation Manager
+                  <>
+                    <AccountStatusPanel
+                        smartAccountAddress={smartAccountAddress}
+                        hasDelegation={hasDelegation}
+                        // Add these if you re-introduce deployment checks later:
+                        // isDeployed={isDeployed}
+                        // checkingDeployment={checkingDeployment}
+                    />
+                    {/* *** MOVED AutomationManager HERE *** */}
+                    <AutomationManager hasDelegation={hasDelegation} />
+                  </>
+                )}
+            </div>
 
           {/* Right Column: Main Content Area */}
           <div className="lg:col-span-2 space-y-8">
@@ -115,8 +127,7 @@ export default function Dashboard() {
               // Show portfolio *as soon as* SA is available
               <>
                 <PortfolioSummary balances={balances} />
-                {/* Show automation manager *only if* delegation is done */}
-                {hasDelegation && <AutomationManager hasDelegation={hasDelegation} />}
+  
               </>
             ) : (
               // Placeholder if no SA address
