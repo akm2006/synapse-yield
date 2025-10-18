@@ -26,18 +26,11 @@ export const monadTestnet = defineChain({
   contracts: {
     multicall3: {
       address: '0xcA11bde05977b3631167028862bE2a173976CA11',
-      // Note: The blockCreated number is not critical for this to work,
-      // but you would typically find this on the block explorer.
-      // We'll use a placeholder or a known value from another testnet.
       blockCreated: 14353601,
     },
   },
 });
-// --- END OF MODIFICATION ---
 
-// -------------------------------
-// Secure Server-side Delegate Account
-// -------------------------------
 const getServerEOAAccount = () => {
   if (typeof window !== "undefined") {
     throw new Error("Private key access attempted on client side");
