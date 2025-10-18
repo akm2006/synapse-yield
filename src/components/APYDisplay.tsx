@@ -1,7 +1,10 @@
 // src/components/APYDisplay.tsx
 'use client';
 
-import { useState, useEffect } from 'react';
+import Image from 'next/image';
+import { motion } from 'framer-motion';
+import { InformationCircleIcon, ArrowTrendingUpIcon } from '@heroicons/react/24/outline';
+import { useEffect, useState } from 'react'; // Added useEffect and useState back
 
 interface ProtocolData {
   name: string;
@@ -20,123 +23,115 @@ interface APYDisplayProps {
 }
 
 export default function APYDisplay({ protocols }: APYDisplayProps) {
-  const [highlightBest, setHighlightBest] = useState(false);
-  
+  const [highlightBest, setHighlightBest] = useState(false); // Restore highlight state
+
+  const bestProtocolKey = protocols.kintsu.apy > protocols.magma.apy ? 'kintsu' : 'magma';
   const bestAPY = Math.max(protocols.kintsu.apy, protocols.magma.apy);
   const apyDifference = Math.abs(protocols.kintsu.apy - protocols.magma.apy);
 
-  // Highlight animation when APY changes significantly
+  // Restore highlight effect logic
   useEffect(() => {
-    if (apyDifference > 2) {
+    if (apyDifference > 1) { // Trigger highlight if difference is noticeable
       setHighlightBest(true);
-      const timer = setTimeout(() => setHighlightBest(false), 2000);
+      const timer = setTimeout(() => setHighlightBest(false), 2500); // Highlight duration
       return () => clearTimeout(timer);
     }
-  }, [apyDifference]);
+  }, [protocols.kintsu.apy, protocols.magma.apy, apyDifference]); // Depend on APYs directly
 
-  const renderProtocolCard = (key: 'kintsu' | 'magma', protocol: ProtocolData) => {
-    const isBest = protocol.apy === bestAPY && apyDifference > 1;
-    const hasBalance = parseFloat(protocol.balance) > 0;
+
+  const renderProtocolCard = (key: 'kintsu' | 'magma') => {
+    const protocol = protocols[key];
+    const isBest = bestProtocolKey === key;
+    const hasBalance = parseFloat(protocol.balance) > 0.0001; // Restore balance check
 
     return (
       <div
         key={key}
-        className={`relative p-4 rounded-lg border transition-all duration-300 ${
+        className={`relative p-4 rounded-xl border-2 transition-all duration-500 ease-out ${
           isBest && highlightBest
-            ? 'border-yellow-400 bg-yellow-900/20 shadow-lg scale-105'
-            : 'border-gray-600 bg-gray-700'
+            ? 'border-cyan-400/60 bg-slate-700/60 scale-[1.03]' // Enhanced highlight style
+            : 'border-slate-700/50 bg-slate-800/30'
         }`}
       >
-        {/* Best APY Badge */}
-        {isBest && apyDifference > 1 && (
-          <div className="absolute -top-2 -right-2 bg-yellow-500 text-black text-xs font-bold px-2 py-1 rounded-full">
-            BEST
-          </div>
+        {/* Restored Best APY Badge with motion */}
+        {isBest && (
+          <motion.div
+            layoutId="best-apy-badge"
+            className="absolute -top-3 left-4 bg-gradient-to-r from-cyan-500 to-blue-500 text-white text-xs font-bold px-3 py-1 rounded-full shadow-lg z-10"
+          >
+            HIGHEST APY
+          </motion.div>
         )}
-
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-2">
-            <span className="text-2xl">{protocol.icon}</span>
-            <div>
-              <h3 className="font-semibold text-white">{protocol.name}</h3>
-              <p className="text-sm text-gray-400">{protocol.symbol}</p>
+        
+        {/* APY Section */}
+        <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-3">
+                <Image src={protocol.icon} alt={protocol.name} width={40} height={40} className="rounded-full" />
+                <div>
+                    <h3 className="font-semibold text-white">{protocol.name}</h3>
+                    <p className="text-sm text-gray-400">{protocol.symbol}</p>
+                </div>
             </div>
-          </div>
-          
-          {/* APY Display */}
-          <div className="text-right">
-            <div className={`text-2xl font-bold ${
-              isBest && highlightBest ? 'text-yellow-400' : 'text-green-400'
-            }`}>
-              {protocol.apy.toFixed(2)}%
+            <div className="text-right">
+                <p className={`text-2xl font-bold ${isBest ? 'text-cyan-300' : 'text-cyan-300/40'}`}>
+                    {protocol.apy.toFixed(2)}%
+                </p>
+                <p className="text-xs text-gray-500">APY</p>
             </div>
-            <div className="text-xs text-gray-400">APY</div>
-          </div>
         </div>
 
-        {/* Balance Display */}
-        <div className="flex justify-between items-center">
-          <span className="text-sm text-gray-400">Your Balance:</span>
-          <div className="text-right">
-            <div className="font-semibold text-white">
-              {parseFloat(protocol.balance).toFixed(4)} {protocol.symbol}
+        {/* Balance Section - Restored */}
+        <div className="mt-4 pt-3 border-t border-white/10">
+             <div className="flex justify-between items-center mb-1">
+                 <span className="text-sm text-gray-400">Your Balance:</span>
+                 <div className={`w-2 h-2 rounded-full ${hasBalance ? 'bg-green-400' : 'bg-gray-500'}`}></div>
+             </div>
+             <div className="text-right">
+                <div className="font-semibold text-white">
+                 {parseFloat(protocol.balance).toFixed(4)} {protocol.symbol}
+                </div>
+                 {hasBalance && ( // Restore USD approximation
+                 <div className="text-xs text-gray-500">
+                     ≈ ${(parseFloat(protocol.balance) * 1.2).toFixed(2)} USD
+                 </div>
+                 )}
             </div>
-            {hasBalance && (
-              <div className="text-xs text-gray-400">
-                ≈ ${(parseFloat(protocol.balance) * 1.2).toFixed(2)} USD
-              </div>
-            )}
-          </div>
         </div>
 
-        {/* Protocol Status */}
-        <div className="mt-3 pt-3 border-t border-gray-600">
-          <div className="flex items-center gap-2">
-            <div className={`w-2 h-2 rounded-full ${hasBalance ? 'bg-green-400' : 'bg-gray-500'}`}></div>
-            <span className="text-xs text-gray-400">
-              {hasBalance ? 'Active Position' : 'No Position'}
-            </span>
-          </div>
-        </div>
       </div>
     );
   };
 
   return (
-    <div className="mb-6">
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="text-lg font-semibold text-white">Protocol APYs</h3>
-        <div className="flex items-center gap-2">
-          <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse"></div>
-          <span className="text-sm text-gray-400">Live Updates</span>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-        {renderProtocolCard('kintsu', protocols.kintsu)}
-        {renderProtocolCard('magma', protocols.magma)}
-      </div>
-
-      {/* APY Comparison */}
-      {apyDifference > 1 && (
-        <div className="p-3 bg-blue-900/20 border border-blue-600 rounded-lg">
-          <div className="flex items-center gap-2 text-blue-200">
-            <span className="text-lg">📊</span>
-            <span className="font-semibold">APY Analysis:</span>
-          </div>
-          <div className="text-sm text-blue-200 mt-1">
-            {protocols.kintsu.apy > protocols.magma.apy 
-              ? `Kintsu offers ${apyDifference.toFixed(2)}% higher APY than Magma`
-              : `Magma offers ${apyDifference.toFixed(2)}% higher APY than Kintsu`
-            }
-          </div>
-          {apyDifference > 5 && (
-            <div className="text-xs text-yellow-300 mt-1">
-              ⚠️ In production, this difference would trigger automatic rebalancing
+    <div className="space-y-4">
+        <div className="flex items-center justify-between">
+            <h3 className="text-lg font-semibold text-white">Live Protocol APYs</h3>
+             {/* Restore Live Updates indicator */}
+            <div className="flex items-center gap-2">
+                
             </div>
-          )}
         </div>
-      )}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {renderProtocolCard('kintsu')}
+            {renderProtocolCard('magma')}
+        </div>
+        
+        {/* Restore APY Comparison/Analysis */}
+        {apyDifference > 0.5 && ( // Show if difference is somewhat significant
+             <div className="p-3 bg-blue-900/20 border border-blue-600/50 rounded-lg flex items-start gap-3">
+                <InformationCircleIcon className="h-5 w-5 text-blue-300 mt-0.5 flex-shrink-0"/>
+                <div>
+                    <p className="text-sm font-medium text-blue-200">
+                        {protocols[bestProtocolKey].name} currently offers {apyDifference.toFixed(2)}% higher APY.
+                    </p>
+                    {apyDifference > 2 && ( // Add emphasis for larger differences
+                        <p className="text-xs text-yellow-300 mt-1">
+                            A significant difference like this may warrant a rebalance.
+                        </p>
+                    )}
+                </div>
+             </div>
+        )}
     </div>
   );
 }

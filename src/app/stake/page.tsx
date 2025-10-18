@@ -96,27 +96,28 @@ const GatedState = ({
   buttonText: string;
   buttonLink: string;
 }) => (
-  <LiquidBackground>
-    <Card className="max-w-fit text-center backdrop-blur-xl bg-slate-900/70 border border-white/10 shadow-2xl flex flex-row items-center justify-center my-auto mx-auto">
-      <div className="p-8">
-        <div className="flex justify-center mb-4">{icon}</div>
-        <h2 className="text-2xl font-bold text-white mb-2">{title}</h2>
-        <p className="text-gray-400 mb-8">{description}</p>
-        <Link
-          href={buttonLink}
-          className="group relative inline-flex items-center justify-center px-8 py-3 bg-gradient-to-r from-blue-700 via-purple-600 to-teal-700 font-semibold text-white rounded-xl shadow-lg hover:shadow-blue-500/30 transition-all duration-300 overflow-hidden"
-        >
-          <span className="absolute inset-0 bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-          <span className="relative z-10 flex items-center gap-2">
-            {buttonText}
-            <ArrowRightIcon className="h-4 w-4 transition-transform group-hover:translate-x-1" />
-          </span>
-        </Link>
-      </div>
-    </Card>
-  </LiquidBackground>
+  <div className="fixed inset-0 flex items-center justify-center z-50">
+    <div className="relative w-full max-w-md mx-auto px-6">
+      <Card className="backdrop-blur-md bg-slate-900/60 border border-white/10 text-center shadow-2xl">
+        <div className="p-8 flex flex-col items-center">
+          <div className="mb-4">{icon}</div>
+          <h2 className="text-2xl font-bold text-white mb-2">{title}</h2>
+          <p className="text-gray-400 mb-8">{description}</p>
+          <Link
+            href={buttonLink}
+            className="group relative inline-flex items-center justify-center px-8 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white font-semibold rounded-xl shadow-lg hover:shadow-blue-500/30 transition-all duration-300 overflow-hidden"
+          >
+            <span className="absolute inset-0 bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+            <span className="relative z-10 flex items-center gap-2">
+              {buttonText}
+              <ArrowRightIcon className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+            </span>
+          </Link>
+        </div>
+      </Card>
+    </div>
+  </div>
 );
-
 
 // --- Main Staking Page Component ---
 
@@ -125,7 +126,7 @@ export default function StakingPage() {
   const { balances, fetchBalances } = useBalances();
   const { generateOpId, openStream } = useSSEStream();
   const { addLog } = useLogger();
-  const { addToast } = useToasts();
+  const { addToast, removeToast } = useToasts();
   const { isAuthenticated } = useAuth();
 
   const [hasDelegation, setHasDelegation] = useState(false);
@@ -161,9 +162,17 @@ export default function StakingPage() {
     setLoading(true);
     const opId = generateOpId();
     openStream(opId, addLog);
-    addToast({ message: `${successMessage.replace(/successful!|submitted!/, '...')}`, type: 'loading', duration: 30000 });
     
+    // FIX: Changed loadingToastId type to number | undefined
+    let loadingToastId: number | undefined;
+
     try {
+      // Correctly assign the number returned by addToast
+      loadingToastId = addToast({ 
+        message: `${successMessage.replace(/successful!|submitted!/, '...')}`, 
+        type: 'loading'
+      }); 
+
       addLog(`[ACTION] ${operation}`);
       const response = await fetch('/api/delegate/execute', {
         method: 'POST',
@@ -191,6 +200,10 @@ export default function StakingPage() {
       return false;
     } finally {
       setLoading(false);
+      // FIX: Check if loadingToastId is a number before removing
+      if (typeof loadingToastId === 'number') {
+        removeToast(loadingToastId);
+      }
     }
   };
   
@@ -227,27 +240,27 @@ export default function StakingPage() {
   };
 
   if (!smartAccountAddress) {
-    return <GatedState icon={<LockClosedIcon className="h-12 w-12  text-yellow-400"/>} title="Smart Account Required" description="Create a smart account on the dashboard to access staking features." buttonText="Go to Dashboard" buttonLink="/dashboard" />;
+    return <GatedState icon={<LockClosedIcon className="h-12 w-12 mx-auto text-yellow-400"/>} title="Smart Account Required" description="Create a smart account on the dashboard to access staking features." buttonText="Go to Dashboard" buttonLink="/dashboard" />;
   }
 
   if (!hasDelegation) {
-    return <GatedState icon={<KeyIcon className="h-12 w-12 text-purple-400"/>} title="Delegation Required" description="Setup delegation to enable one-click staking operations." buttonText="Setup Delegation" buttonLink="/dashboard" />;
+    return <GatedState icon={<KeyIcon className="h-12 w-12 mx-auto text-purple-400"/>} title="Delegation Required" description="Setup delegation to enable one-click staking operations." buttonText="Setup Delegation" buttonLink="/dashboard" />;
   }
 
   return (
-    <LiquidBackground>
-      <main className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-24">
+    <div>
+      <main className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pt-12 pb-24">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
           
           <aside className="lg:col-span-4 space-y-8">
             <Card>
               <div className="flex space-x-2 p-1 bg-slate-800/50 rounded-lg">
                 <button onClick={() => setActiveTab('magma')} className={`w-1/2 p-3 rounded-md font-semibold text-sm transition-all duration-300 flex items-center justify-center gap-2.5 ${activeTab === 'magma' ? 'bg-slate-700 text-white shadow-md' : 'text-gray-400 hover:bg-slate-700/50'}`}>
-                  <Image src="/gmon.png" alt="Magma" width={24} height={24} className="rounded-full"/>
+                  <Image src="/magma.png" alt="Magma" width={24} height={24} className="rounded-full"/>
                   Magma
                 </button>
                 <button onClick={() => setActiveTab('kintsu')} className={`w-1/2 p-3 rounded-md font-semibold text-sm transition-all duration-300 flex items-center justify-center gap-2.5 ${activeTab === 'kintsu' ? 'bg-slate-700 text-white shadow-md' : 'text-gray-400 hover:bg-slate-700/50'}`}>
-                   <Image src="/smon.jpg" alt="Kintsu" width={24} height={24} className="rounded-full"/>
+                   <Image src="/kintsu.png" alt="Kintsu" width={24} height={24} className="rounded-full"/>
                   Kintsu
                 </button>
               </div>
@@ -327,7 +340,7 @@ export default function StakingPage() {
           </section>
         </div>
       </main>
-    </LiquidBackground>
+    </div>
   );
 }
 

@@ -2,39 +2,70 @@
 
 import { useState, useEffect } from 'react';
 import { useSmartAccount } from '@/hooks/useSmartAccount';
-import { useBalances } from '@/hooks/useBalances';
-import TransactionLogger from '@/components/TransactionLogger';
+import { useBalances } from '@/providers/BalanceProvider';
 import { useLogger } from '@/providers/LoggerProvider';
 import { useToasts } from '@/providers/ToastProvider';
 import YieldOptimizerInterface from '@/components/YieldOptimizerInterface';
 import { useAuth } from '@/providers/AuthProvider';
 import {
-  ChartBarIcon,
-  ArrowTrendingUpIcon,
-  ShieldExclamationIcon
+  ShieldExclamationIcon,
+  KeyIcon,
+  LockClosedIcon,
+  ArrowRightIcon,
 } from '@heroicons/react/24/outline';
 import Link from 'next/link';
+import Card from '@/components/common/Card';
+import LiquidBackground from '@/components/layout/LiquidBackground';
+import Image from 'next/image';
 
-// Static data for display purposes
-const protocolsData = [
-  { name: 'Kintsu', apy: '12.5', tvl: '1.2M', token: 'sMON' },
-  { name: 'Magma', apy: '10.8', tvl: '800K', token: 'gMON' }
-];
+const GatedState = ({
+  icon,
+  title,
+  description,
+  buttonText,
+  buttonLink,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  description: string;
+  buttonText: string;
+  buttonLink: string;
+}) => (
+  <div className="fixed inset-0 flex items-center justify-center z-50">
+    <div className="relative w-full max-w-md mx-auto px-6">
+      <Card className="backdrop-blur-md bg-slate-900/60 border border-white/10 text-center shadow-2xl">
+        <div className="p-8 flex flex-col items-center">
+          <div className="mb-4">{icon}</div>
+          <h2 className="text-2xl font-bold text-white mb-2">{title}</h2>
+          <p className="text-gray-400 mb-8">{description}</p>
+          <Link
+            href={buttonLink}
+            className="group relative inline-flex items-center justify-center px-8 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white font-semibold rounded-xl shadow-lg hover:shadow-blue-500/30 transition-all duration-300 overflow-hidden"
+          >
+            <span className="absolute inset-0 bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+            <span className="relative z-10 flex items-center gap-2">
+              {buttonText}
+              <ArrowRightIcon className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+            </span>
+          </Link>
+        </div>
+      </Card>
+    </div>
+  </div>
+);
+
 
 export default function YieldOptimizerPage() {
   const { isAuthenticated, isLoading: isAuthLoading } = useAuth();
   const { smartAccountAddress } = useSmartAccount();
-  const { balances, isLoading: balancesLoading, fetchBalances } = useBalances(smartAccountAddress);
-  const { logs, addLog, clearLogs } = useLogger();
+  const { balances, isLoading: balancesLoading, fetchBalances } = useBalances();
+  const { addLog } = useLogger();
   const { addToast } = useToasts();
-  // start closed; open only when user clicks the button
 
-  // State now tracks if a delegation exists on the backend
   const [hasDelegation, setHasDelegation] = useState(false);
   const [checkingDelegation, setCheckingDelegation] = useState(true);
   const [totalValueLocked, setTotalValueLocked] = useState('0.00');
 
-  // Check for an existing delegation on the backend when the user is authenticated
   useEffect(() => {
     if (isAuthenticated && smartAccountAddress) {
       setCheckingDelegation(true);
@@ -49,13 +80,11 @@ export default function YieldOptimizerPage() {
         .catch(err => { console.error("Failed to check delegation status", err); try { addToast({ message: 'Failed to check delegation status', type: 'error' }); } catch {} })
         .finally(() => setCheckingDelegation(false));
     } else if (!isAuthenticated) {
-      // If not authenticated, we know there's no delegation to check
       setCheckingDelegation(false);
     }
-  }, [isAuthenticated, smartAccountAddress, addLog]);
+  }, [isAuthenticated, smartAccountAddress, addLog, addToast]);
 
 
-  // Calculate total value locked (no changes needed here)
   useEffect(() => {
     if (balances) {
       const total = (
@@ -67,167 +96,86 @@ export default function YieldOptimizerPage() {
     }
   }, [balances]);
 
-  // This handler is now much simpler
   const handleRebalanceComplete = () => {
     addLog('[SUCCESS] Rebalance operation logged.');
     fetchBalances(false);
   };
 
-  // Loading and Authentication checks
   if (isAuthLoading || checkingDelegation) {
-    return (
-      <div className="min-h-screen flex items-center justify-center text-center">
-        <div>
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-400 mx-auto"></div>
-          <p className="mt-4 text-gray-400">Loading Optimizer...</p>
-        </div>
-      </div>
+     return (
+        <LiquidBackground>
+            <div className="min-h-screen flex items-center justify-center text-center">
+                <div>
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-400 mx-auto"></div>
+                <p className="mt-4 text-gray-400">Loading Optimizer...</p>
+                </div>
+            </div>
+        </LiquidBackground>
     );
   }
 
   if (!isAuthenticated) {
-    return (
-      <div className="min-h-screen flex items-center justify-center text-center p-4">
-        <div className="bg-gray-900/50 border border-white/10 rounded-2xl p-8 max-w-md">
-          <ShieldExclamationIcon className="h-16 w-16 mx-auto text-yellow-400 mb-4" />
-          <h2 className="text-2xl font-bold text-white">Authentication Required</h2>
-          <p className="text-gray-400 mt-2 mb-6">Please sign in to access the Yield Optimizer.</p>
-        </div>
-      </div>
-    );
+    return <GatedState icon={<ShieldExclamationIcon className="h-12 w-12 mx-auto text-yellow-400"/>} title="Authentication Required" description="Please sign in to access the Yield Optimizer." buttonText="Sign In on Dashobard" buttonLink="/dashboard" />;
   }
 
   if (!smartAccountAddress) {
-    return (
-      <div className="min-h-screen flex items-center justify-center text-center p-4">
-         <div className="bg-gray-900/50 border border-white/10 rounded-2xl p-8 max-w-md">
-            <h2 className="text-2xl font-bold text-white">Smart Account Required</h2>
-            <p className="text-gray-400 mt-2 mb-6">Create a smart account on the dashboard to use the optimizer.</p>
-            <a href="/dashboard" className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-xl">
-              Go to Dashboard
-            </a>
-         </div>
-      </div>
-    );
+    return <GatedState icon={<LockClosedIcon className="h-12 w-12 mx-auto text-yellow-400"/>} title="Smart Account Required" description="Create a smart account on the dashboard to use the optimizer." buttonText="Go to Dashboard" buttonLink="/dashboard" />;
   }
-
+  
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-950 via-blue-950/50 to-gray-950">
-      {/* Header */}
-      <div className="border-b border-white/10 bg-white/5 backdrop-blur-sm">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="py-8">
-            <div className="flex items-center gap-4">
-              <div className="p-3 bg-gradient-to-r from-green-500 to-emerald-500 rounded-xl">
-                <ArrowTrendingUpIcon className="h-8 w-8 text-white" />
-              </div>
-              <div>
-                <h1 className="text-4xl font-bold text-white mb-2">Yield Optimizer</h1>
-                <p className="text-gray-400">Automated yield maximization across Monad DeFi protocols</p>
-              </div>
-              <div className="ml-auto">
-               
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+   
+       <div>
+       {/* Reduced top padding here */}
+      <main className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pt-12 pb-24">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
           {/* Left Column - Portfolio Overview */}
-          <div className="space-y-6">
-            <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-6">
+          <aside className="lg:col-span-4 space-y-8">
+            <Card>
               <h2 className="text-xl font-semibold text-white mb-6">Portfolio Overview</h2>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+              <div className="space-y-6">
                 <div className="bg-black/20 rounded-xl p-4 border border-white/10">
                   <p className="text-sm text-gray-400">Total Value Locked</p>
-                  <p className="text-2xl font-bold text-white mt-1">
-                    {totalValueLocked} <span className="text-lg text-gray-400">MON</span>
+                  <p className="text-3xl font-bold text-white mt-1">
+                    {totalValueLocked} <span className="text-xl text-gray-400">MON</span>
                   </p>
                 </div>
                 <div className="bg-black/20 rounded-xl p-4 border border-white/10">
                   <p className="text-sm text-gray-400">Blended APY</p>
-                   <p className="text-2xl font-bold text-green-400 mt-1">
-                        {((parseFloat(protocolsData[0].apy) + parseFloat(protocolsData[1].apy)) / 2).toFixed(1)}%
-                    </p>
+                   <p className="text-3xl font-bold text-green-400 mt-1">11.75%</p>
                 </div>
               </div>
-              <div className="mt-6">
+              <div className="mt-6 pt-4 border-t border-white/10">
                 <h3 className="text-lg font-medium text-white mb-4">Asset Allocation</h3>
                 <div className="space-y-3">
-                  <div className="flex items-center justify-between p-3 bg-white/5 rounded-xl border border-white/10">
-                    <span className="text-white">Native MON</span>
-                    <span className="text-gray-300">{balances?.native || '0.00'} MON</span>
-                  </div>
-                  <div className="flex items-center justify-between p-3 bg-white/5 rounded-xl border border-white/10">
-                    <span className="text-white">Kintsu (sMON)</span>
-                    <span className="text-gray-300">{balances?.kintsu || '0.00'} sMON</span>
-                  </div>
-                  <div className="flex items-center justify-between p-3 bg-white/5 rounded-xl border border-white/10">
-                   <span className="text-white">Magma (gMON)</span>
-                    <span className="text-gray-300">{balances?.magma || '0.00'} gMON</span>
-                  </div>
+                    {[
+                        { name: 'Native MON', balance: balances?.native, icon: '/mon.jpeg'},
+                        { name: 'Kintsu (sMON)', balance: balances?.kintsu, icon: '/smon.jpg' },
+                        { name: 'Magma (gMON)', balance: balances?.magma, icon: '/gmon.png' }
+                    ].map(asset => (
+                        <div key={asset.name} className="flex items-center justify-between p-2">
+                            <div className="flex items-center gap-3">
+                                <Image src={asset.icon} alt={asset.name} width={24} height={24} className="rounded-full"/>
+                                <span className="text-sm text-gray-300">{asset.name}</span>
+                            </div>
+                            <span className="font-mono text-sm text-white">{parseFloat(asset.balance || '0').toFixed(4)}</span>
+                        </div>
+                    ))}
                 </div>
               </div>
-            </div>
-            <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-6">
-              <h3 className="text-lg font-semibold text-white mb-4">Performance Stats</h3>
-              <div className="space-y-4">
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-400">Last Rebalance</span>
-                  <span className="text-white">2 hours ago</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-400">Total Rebalances</span>
-                  <span className="text-white">12</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-400">Gas Saved</span>
-                  <span className="text-green-400">0.045 MON</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-400">Yield Generated</span>
-                  <span className="text-green-400">+0.156 MON</span>
-                </div>
-              </div>
-            </div>
-          </div>
+            </Card>
+          </aside>
 
-          <div className="lg:col-span-2 space-y-6">
-            <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-6">
-              <h2 className="text-xl font-semibold text-white mb-4">Optimizer Controls</h2>
-              <YieldOptimizerInterface
+          {/* Right Column - Optimizer Interface */}
+          <section className="lg:col-span-8">
+             <YieldOptimizerInterface
                 smartAccountAddress={smartAccountAddress}
                 hasDelegation={hasDelegation}
                 onLog={addLog}
                 onBalanceRefresh={handleRebalanceComplete}
               />
-            </div>
-
-            
-
-            <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-6">
-              <h3 className="text-lg font-semibold text-white mb-4">Quick Actions</h3>
-              <div className="space-y-3">
-                <button
-                  onClick={() => fetchBalances(true)}
-                  disabled={balancesLoading}
-                  className="w-full px-4 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 text-white font-medium rounded-xl transition-colors"
-                >
-                  {balancesLoading ? 'Refreshing...' : 'Refresh Balances'}
-                </button>
-                <a
-                  href="/dashboard"
-                  className="w-full px-4 py-3 bg-gray-700 hover:bg-gray-600 text-white font-medium rounded-xl transition-colors text-center block"
-                >
-                  Back to Dashboard
-                </a>
-              </div>
-            </div>
-          </div>
+          </section>
         </div>
-      </div>
-    </div>
+      </main>
+     </div>
   );
 }

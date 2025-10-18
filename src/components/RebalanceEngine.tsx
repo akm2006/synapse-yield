@@ -3,11 +3,13 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import type { Address } from 'viem';
-import { useBalances } from '@/hooks/useBalances';
+import { useBalances } from '@/providers/BalanceProvider';
 import { determineRebalanceAction } from '@/utils/yieldOptimizer';
 import { CONTRACTS } from '@/lib/contracts';
 import { useToasts } from '@/providers/ToastProvider';
 import { useLogger } from '@/providers/LoggerProvider';
+import { motion } from 'framer-motion';
+import { ArrowPathIcon, BoltIcon } from '@heroicons/react/24/outline';
 
 interface RebalanceEngineProps {
   smartAccountAddress: Address;
@@ -27,117 +29,76 @@ export default function RebalanceEngine({
   const { addToast } = useToasts();
   const { addLog } = useLogger();
   const [isRebalancing, setIsRebalancing] = useState(false);
+  const { balances, isLoading: balancesLoading, fetchBalances } = useBalances();
 
-  // Fetch real-time balances
-  const { balances, isLoading: balancesLoading, fetchBalances } = useBalances(smartAccountAddress);
-
-  // Recalculate rebalancing need whenever balances change
   const rebalanceAnalysis = useMemo(() => {
-    const analysis = determineRebalanceAction(balances.kintsu, balances.magma);
-    console.log('[RebalanceEngine] Balance update:', {
-      kintsu: balances.kintsu,
-      magma: balances.magma,
-      shouldRebalance: analysis.shouldRebalance,
-      amount: analysis.amount
-    });
-    return analysis;
+    return determineRebalanceAction(balances.kintsu, balances.magma);
   }, [balances.kintsu, balances.magma]);
 
-  // Optimal fee helper
-  const getOptimalFee = (from: string, to: string): number => {
-    if ((from === 'sMON' && to === 'gMON') || (from === 'gMON' && to === 'sMON')) {
-      return 500;
-    }
-    return 2500;
-  };
+  const getOptimalFee = (from: string, to: string): number => (
+    (from === 'sMON' && to === 'gMON') || (from === 'gMON' && to === 'sMON') ? 500 : 2500
+  );
 
   const executeRebalance = async () => {
-    if (!rebalanceAnalysis.shouldRebalance || !delegation) {
-      onLog('[ERROR] Cannot rebalance - missing requirements');
+    if (!rebalanceAnalysis.shouldRebalance || !delegation || !rebalanceAnalysis.amount) {
       addToast({ message: 'Cannot rebalance - missing requirements', type: 'error' });
       return;
     }
     setIsRebalancing(true);
-    onLog('[ACTION] Starting migration via direct swap...');
-    addToast({ message: 'Starting migration...', type: 'info' });
+    addLog('[ACTION] Starting portfolio rebalance...');
+    addToast({ message: 'Starting rebalance...', type: 'info' });
 
     try {
-      onLog('[INFO] Refreshing balances before execution...');
+      addLog('[INFO] Refreshing balances before execution...');
       await fetchBalances(true);
 
       const currentAnalysis = determineRebalanceAction(balances.kintsu, balances.magma);
-      if (!currentAnalysis.shouldRebalance) {
-        onLog('[INFO] Balances are now balanced - no migration needed');
+      if (!currentAnalysis.shouldRebalance || !currentAnalysis.amount) {
+        addLog('[INFO] Balances are now balanced - no rebalance needed');
         setIsRebalancing(false);
         return;
       }
 
       const { fromProtocol, toProtocol, amount } = currentAnalysis;
-      if (!fromProtocol || !toProtocol || !amount) {
-        throw new Error('Invalid rebalance analysis data');
-      }
-
       const fromToken = fromProtocol === 'kintsu' ? 'sMON' : 'gMON';
       const toToken = toProtocol === 'kintsu' ? 'sMON' : 'gMON';
-      const TOKEN_ADDRESSES: Record<string, Address> = {
-        sMON: CONTRACTS.KINTSU,
-        gMON: CONTRACTS.GMON
-      };
-      const fromTokenAddr = TOKEN_ADDRESSES[fromToken];
-      const toTokenAddr = TOKEN_ADDRESSES[toToken];
+      
+      const TOKEN_ADDRESSES: Record<string, Address> = { sMON: CONTRACTS.KINTSU, gMON: CONTRACTS.GMON };
+      
+      addLog(`[INFO] Rebalance: ${amount} ${fromToken} → ${toToken}`);
 
-      onLog(`[INFO] Migrate: ${amount} ${fromToken} → ${toToken}`);
-      onLog(`[INFO] Pre-execution balances - sMON: ${balances.kintsu}, gMON: ${balances.magma}`);
-      onLog('[INFO] Executing single-transaction swap via PancakeSwap');
-
-      const amountInWei = BigInt(Math.floor(+amount * 1e18)).toString();
-      const minOut = (BigInt(amountInWei) * 95n / 100n).toString();
-      const fee = getOptimalFee(fromToken, toToken);
-      const deadline = Math.floor(Date.now() / 1000) + 1800;
-
+      const amountInWei = BigInt(Math.floor(parseFloat(amount) * 1e18)).toString();
       const response = await fetch('/api/delegate/execute', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           userAddress: smartAccountAddress,
           operation: 'direct-swap',
-          fromToken: fromTokenAddr,
-          toToken: toTokenAddr,
+          fromToken: TOKEN_ADDRESSES[fromToken],
+          toToken: TOKEN_ADDRESSES[toToken],
           amountIn: amountInWei,
-          minOut,
-          fee,
+          minOut: (BigInt(amountInWei) * 95n / 100n).toString(),
+          fee: getOptimalFee(fromToken, toToken),
           recipient: smartAccountAddress,
-          deadline,
-          delegation
+          deadline: Math.floor(Date.now() / 1000) + 1800,
         })
       });
 
       const result = await response.json();
-      if (!result.success) {
-        throw new Error(result.error || 'Migration failed');
-      }
+      if (!result.success) throw new Error(result.error || 'Rebalance failed');
 
-      const operations = result.operations || [];
-      if (operations.length > 0) {
-        onLog(`[SUCCESS] Migration completed with ${operations.length} operations`);
-        operations.forEach((op: any, i: number) => {
-          if (op.userOpHash) onLog(`[UO-${i+1}] ${op.userOpHash}`);
-          if (op.txHash) onLog(`[TX-${i+1}] ${op.txHash}`);
-        });
-      }
-
-      onLog('[SUCCESS] Gas-optimized migration completed!');
-      const lastOp = operations[operations.length - 1];
-      addToast({ message: 'Migration completed!', type: 'success', txHash: lastOp?.txHash });
-      setTimeout(async () => {
-        onLog('[INFO] Refreshing balances after migration...');
-        await fetchBalances(false);
+      const lastOp = result.operations?.[result.operations.length - 1];
+      addToast({ message: 'Rebalance completed!', type: 'success', txHash: lastOp?.txHash });
+      
+      setTimeout(() => {
+        onLog('[INFO] Refreshing balances after rebalance...');
+        fetchBalances(false);
         onRebalanceComplete();
       }, 3000);
 
     } catch (error: any) {
-      onLog(`[ERROR] Migration failed: ${error.message}`);
-      addToast({ message: `Migration failed: ${error.message}`, type: 'error' });
+      addLog(`[ERROR] Rebalance failed: ${error.message}`);
+      addToast({ message: `Rebalance failed: ${error.message}`, type: 'error' });
     } finally {
       setIsRebalancing(false);
     }
@@ -146,142 +107,73 @@ export default function RebalanceEngine({
   const renderRebalancePreview = () => {
     if (balancesLoading) {
       return (
-        <div className="p-4 bg-gray-700 rounded-lg text-center">
-          <div className="text-gray-400 mb-2">⏳</div>
-          <div className="text-white font-semibold mb-1">Loading Balances...</div>
-          <div className="text-sm text-gray-400">Fetching latest token balances</div>
+        <div className="p-4 bg-slate-800/50 rounded-lg text-center text-gray-400">
+          <ArrowPathIcon className="h-5 w-5 mx-auto animate-spin mb-2" />
+          <p>Loading Balances...</p>
         </div>
       );
     }
 
     if (!rebalanceAnalysis.shouldRebalance) {
       return (
-        <div className="p-4 bg-gray-700 rounded-lg text-center">
-          <div className="text-gray-400 mb-2">⚖️</div>
+        <div className="p-4 bg-slate-800/50 rounded-lg text-center">
+          <div className="text-green-400 mb-2">✔️</div>
           <div className="text-white font-semibold mb-1">Portfolio Balanced</div>
-          <div className="text-sm text-gray-400">No migration needed at this time</div>
-          <div className="mt-2 pt-2 border-t border-gray-600 text-xs text-gray-400">
-            sMON: {balances.kintsu} | gMON: {balances.magma}
-          </div>
+          <p className="text-sm text-gray-400">No rebalance needed at this time.</p>
         </div>
       );
     }
 
-    const { fromProtocol, toProtocol, amount, reason } = rebalanceAnalysis;
-    const fromToken = fromProtocol === 'kintsu' ? 'sMON' : 'gMON';
-    const toToken = toProtocol === 'kintsu' ? 'sMON' : 'gMON';
-
+    const { amount, reason } = rebalanceAnalysis;
     return (
-      <div className="p-4 bg-blue-900/20 border border-blue-600 rounded-lg">
-        <div className="flex items-center gap-2 mb-3">
+      <div className="p-4 bg-blue-900/20 border-2 border-blue-500/30 rounded-lg">
+        <div className="flex items-center gap-3 mb-3">
           <span className="text-xl">🔄</span>
-          <span className="font-semibold text-blue-200">Migrate Ready</span>
+          <span className="font-semibold text-blue-300">Rebalance Recommended</span>
         </div>
-        <div className="space-y-2 text-sm text-blue-200">
-          <div className="flex justify-between">
-            <span>Current {fromToken}:</span>
-            <span className="font-mono">{balances.kintsu}</span>
-          </div>
-          <div className="flex justify-between">
-            <span>Current {toToken}:</span>
-            <span className="font-mono">{balances.magma}</span>
-          </div>
-          <div className="border-t border-blue-600 pt-2"></div>
-          <div className="flex justify-between">
-            <span>Migrate Amount:</span>
-            <span className="font-mono font-bold text-yellow-400">
-              {amount} {fromToken}
-            </span>
-          </div>
-          <div className="pt-2 border-t border-blue-600">
-            <span className="text-xs text-blue-300">{reason}</span>
-          </div>
-        </div>
-        <div className="mt-3 p-2 bg-green-900/20 border border-green-600 rounded text-xs text-green-200">
-          <div className="flex items-center gap-1">
-            <span>⚡</span>
-            <span className="font-semibold">Gas Optimized:</span>
-          </div>
-          <div className="mt-1">Single transaction migration</div>
+        <p className="text-sm text-blue-300 mb-4">{reason}</p>
+        <div className="text-xs text-green-300 p-2 bg-green-900/20 border border-green-700/50 rounded flex items-center gap-2">
+            <BoltIcon className="h-4 w-4" />
+            <span>Single Transaction Swap via PancakeSwap Universal Router</span>
         </div>
       </div>
     );
   };
-
-  useEffect(() => {
-    console.log('[RebalanceEngine] Balances changed:', balances);
-    console.log('[RebalanceEngine] Migration needed:', rebalanceAnalysis.shouldRebalance);
-    console.log('[RebalanceEngine] Amount to migrate:', rebalanceAnalysis.amount);
-  }, [balances, rebalanceAnalysis]);
+  
+  const isButtonDisabled = disabled || !rebalanceAnalysis.shouldRebalance || isRebalancing || !delegation || balancesLoading;
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h3 className="text-lg font-semibold text-white">Rebalance Engine</h3>
-        <div className="flex items-center gap-2">
-          <div className={`w-2 h-2 rounded-full ${
-            balancesLoading
-              ? 'bg-blue-400 animate-pulse'
-              : rebalanceAnalysis.shouldRebalance
-                ? 'bg-yellow-400'
-                : 'bg-green-400'
-          }`}></div>
-          <span className="text-sm text-gray-400">
-            {balancesLoading
-              ? 'Loading...'
-              : rebalanceAnalysis.shouldRebalance
-                ? `Migrate ${rebalanceAnalysis.amount || '0'} Ready`
-                : 'Optimized'
-            }
-          </span>
-        </div>
-      </div>
-
+      <h3 className="text-lg font-semibold text-white">Rebalance Engine</h3>
       {renderRebalancePreview()}
-
-      <button
+      <motion.button
         onClick={executeRebalance}
-        disabled={
-          disabled ||
-          !rebalanceAnalysis.shouldRebalance ||
-          isRebalancing ||
-          !delegation ||
-          balancesLoading
-        }
-        className={`w-full py-3 px-4 rounded-lg font-semibold transition-all duration-200 ${
-          disabled ||
-          !rebalanceAnalysis.shouldRebalance ||
-          !delegation ||
-          balancesLoading
-            ? 'bg-gray-600 text-gray-400 cursor-not-allowed'
-            : isRebalancing
-            ? 'bg-blue-600 text-white cursor-wait'
-            : 'bg-gradient-to-r from-green-600 to-blue-600 text-white hover:from-green-700 hover:to-blue-700 shadow-lg hover:shadow-xl'
-        }`}
+        disabled={isButtonDisabled}
+        className="group relative w-full bg-gradient-to-r from-blue-700 via-purple-600 to-teal-700 font-semibold py-4 px-6 rounded-xl transition-all duration-300 flex items-center justify-center overflow-hidden text-white shadow-lg hover:shadow-blue-500/30 disabled:opacity-50 disabled:cursor-not-allowed"
+        whileHover={{ scale: isButtonDisabled ? 1 : 1.02 }}
+        whileTap={{ scale: isButtonDisabled ? 1 : 0.98 }}
       >
-        {isRebalancing ? (
-          <div className="flex items-center justify-center gap-2">
-            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-            Migrating...
-          </div>
-        ) : balancesLoading ? (
-          'Loading Balances...'
-        ) : !delegation ? (
-          'Setup Delegation First'
-        ) : !rebalanceAnalysis.shouldRebalance ? (
-          'No Migration Needed'
-        ) : disabled ? (
-          'Add Funds to Enable'
-        ) : (
-          `⚡ Migrate ${rebalanceAnalysis.amount || '0'} tokens`
-        )}
-      </button>
-
-      {rebalanceAnalysis.shouldRebalance && !balancesLoading && (
-        <div className="text-xs text-gray-400 text-center">
-          Gas-optimized single transaction via PancakeSwap Universal Router
-        </div>
-      )}
+        <span className="absolute inset-0 bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+        <span className="relative z-10 flex items-center justify-center">
+          {isRebalancing ? (
+            <>
+              <motion.span
+                animate={{ rotate: 360 }}
+                transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
+                className="inline-block w-5 h-5 border-2 border-white border-t-transparent rounded-full mr-3"
+              />
+              Rebalancing...
+            </>
+          ) : rebalanceAnalysis.shouldRebalance ? (
+            <>
+              <BoltIcon className="h-5 w-5 mr-2" />
+              Rebalance Portfolio
+            </>
+          ) : (
+            'Portfolio is Balanced'
+          )}
+        </span>
+      </motion.button>
     </div>
   );
 }
