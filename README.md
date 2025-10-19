@@ -1,5 +1,9 @@
 
-<h1 align="center">🚀 Synapse Yield</h1>
+<p align="center">
+  <img src="./public/logo.png" alt="Synapse Yield Logo" width="140" />
+</p>
+
+<h1 align="center"> Synapse Yield</h1>
 
 <p align="center">
   <strong>Maximize Your DeFi Yield on Monad with Automated Optimization & Enhanced Security</strong><br>
