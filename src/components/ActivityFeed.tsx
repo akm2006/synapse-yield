@@ -104,8 +104,7 @@ const Logo = ({ name, size = 'md' }: { name?: string; size?: 'sm' | 'md' | 'lg' 
   alt={`${name} logo`}
   width={32} // Add appropriate width
   height={32} // Add appropriate height
-  className="h-8 w-8 object-contain transition-all duration-300 group-hover:grayscale-0 grayscale"
-/>
+  className="h-8 w-8 object-contain rounded-full"/>
   );
 };
 

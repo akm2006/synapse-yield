@@ -15,7 +15,7 @@ const TechLogo = ({ name, src, href }: { name: string, src: string, href: string
   alt={`${name} logo`}
   width={32} // Add appropriate width
   height={32} // Add appropriate height
-  className="h-8 w-8 object-contain transition-all duration-300 group-hover:grayscale-0 grayscale"
+  className="h-8 w-8 object-contain transition-all duration-300 group-hover:grayscale-0 grayscale rounded-full  "
 />
     <span className="text-sm font-semibold text-gray-300 group-hover:text-white">{name}</span>
   </a>
@@ -80,12 +80,12 @@ export default function ActivityFeedPage() {
           <div className="flex flex-col md:flex-row items-center justify-center gap-8">
             <TechLogo
               name="Powered by Monad"
-              src="https://i0.wp.com/www.gizmotimes.com/wp-content/uploads/2023/10/Monad-Logo.png?fit=1920%2C1080&ssl=1"
+              src="/monad.png"
               href="https://www.monad.xyz/"
             />
             <TechLogo
               name="Indexed by Envio"
-              src="https://avatars.githubusercontent.com/u/135992464?s=280&v=4"
+              src="/envio.png"
               href="https://envio.dev/"
             />
           </div>
