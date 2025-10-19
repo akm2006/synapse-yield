@@ -10,23 +10,26 @@ import {
   Bars3Icon,
   XMarkIcon,
   CpuChipIcon,
-  HomeIcon,
   ArrowsRightLeftIcon,
   ArrowPathIcon,
   ChartBarIcon,
   ArrowRightOnRectangleIcon,
+  WalletIcon, // Added for Manage Funds
+  ListBulletIcon, // Added for Activity
 } from '@heroicons/react/24/outline';
-import { useAuth } from '@/providers/AuthProvider'; // Import the useAuth hook
+import { useAuth } from '@/providers/AuthProvider';
 import { useAccount } from 'wagmi';
 
+// Updated and logically ordered navigation links
 const navigation = [
-  { name: 'Home', href: '/', icon: HomeIcon },
   { name: 'Dashboard', href: '/dashboard', icon: CpuChipIcon },
+  { name: 'Manage Funds', href: '/manage-funds', icon: WalletIcon },
   { name: 'Staking', href: '/stake', icon: ArrowPathIcon },
   { name: 'Swap', href: '/swap', icon: ArrowsRightLeftIcon },
   { name: 'Optimizer', href: '/yield-optimizer', icon: ChartBarIcon },
-  { name: 'Activity', href: '/activity', icon: ChartBarIcon },
+  { name: 'Activity', href: '/activity', icon: ListBulletIcon },
 ];
+
 
 const navItemVariants: Variants = {
   hidden: { opacity: 0, y: -20 },
@@ -64,9 +67,12 @@ export default function Header() {
 
   useEffect(() => {
     const handleScroll = () => {
+      // Set to true if scrolled more than 20px, false otherwise
       setIsScrolled(window.scrollY > 20);
     };
+    // Attach listener
     window.addEventListener('scroll', handleScroll, { passive: true });
+    // Clean up listener
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
@@ -87,7 +93,7 @@ export default function Header() {
         </button>
       );
     }
-    
+
     // When connected and authenticated, show the standard button
     return <ConnectButton chainStatus="icon" showBalance={false} />;
   };
@@ -103,8 +109,8 @@ export default function Header() {
         <div
           className={`mx-auto max-w-7xl rounded-2xl transition-all duration-300 ${
             isScrolled
-              ? 'bg-transparent'
-              : 'bg-gray-950/70 backdrop-blur-xl border border-white/10 shadow-lg'
+              ? 'bg-transparent' // Transparent background when scrolling
+              : 'bg-gray-950/70 backdrop-blur-xl border border-white/10 shadow-lg' // Default background when at the top
           }`}
         >
           <nav className="flex h-20 items-center justify-between px-4 sm:px-6">
@@ -116,14 +122,14 @@ export default function Header() {
                 }}
                 transition={{ duration: 5, repeat: Infinity, repeatType: 'mirror' }}
               >
-<Image
-  src="/logo.png"
-  alt="Synapse Yield Logo"
-  width={36}
-  height={36}
-  className="transition-transform duration-300 group-hover:scale-110"
-  style={{ height: 'auto' }} // Ensure this style is applied
-/>
+                <Image
+                  src="/logo.png"
+                  alt="Synapse Yield Logo"
+                  width={36}
+                  height={36}
+                  className="transition-transform duration-300 group-hover:scale-110"
+                  style={{ height: 'auto' }}
+                />
               </motion.div>
               <div className="hidden md:block">
                 <h1 className="text-xl font-bold text-white/90 tracking-tight">

@@ -2,18 +2,21 @@
 
 import { gql } from '@apollo/client';
 import { useQuery } from '@apollo/client/react';
-import { Listbox, Transition } from '@headlessui/react'
+import { Listbox, Transition, Switch } from '@headlessui/react'
 import { formatDistanceToNow } from 'date-fns';
 import { formatUnits } from 'viem';
-import { useState, useMemo, useEffect, Fragment } from "react";
-import { 
-  ArrowRight, TrendingUp, TrendingDown, RefreshCw, 
-  ExternalLink, ChevronLeft, ChevronRight, CircleSlash, 
-  BarChart2, ChevronDown, Check, Clock, List , XCircle
+import { useState, useMemo, useEffect, Fragment, useCallback } from "react";
+import {
+  ArrowRight, TrendingUp, TrendingDown, RefreshCw,
+  ExternalLink, ChevronLeft, ChevronRight, CircleSlash,
+  BarChart2, ChevronDown, Check, Clock, List , XCircle, Bot, User
 } from 'lucide-react';
+import { useAuth } from '@/providers/AuthProvider';
+import { useSmartAccount } from '@/hooks/useSmartAccount';
+import { IActivity as DbActivityType } from '@/models/Activity';
 
 // --- Types ---
-interface Activity {
+interface GraphActivity {
   id: string;
   activityType: "Stake" | "Unstake" | "Swap" | string;
   protocol: string;
@@ -27,18 +30,37 @@ interface Activity {
   blockTimestamp: string;
 }
 
+interface UnifiedActivity {
+  id: string;
+  activityType: string;
+  protocol: string | null;
+  user: string;
+  details?: string;
+  amount?: string;
+  fromTokenName?: string;
+  toTokenName?: string;
+  fromAmount?: string;
+  toAmount?: string;
+  transactionHash: string | null;
+  timestamp: number;
+  isAutomated: boolean;
+  isNew?: boolean;
+}
+
+
 interface GetRecentActivityData {
-  Activity: Activity[];
+  Activity: GraphActivity[];
 }
 
 // --- Logo Mapping ---
 const logoMap: { [key: string]: string } = {
-  MAGMA: 'https://pbs.twimg.com/profile_images/1798840544887787520/OWxSEpYX_400x400.jpg',
-  gMON: 'https://asset-metadata-service-production.s3.amazonaws.com/asset_icons/82b24e7a1ed5ff824419f794d18655bee9098a9f5430ae4c894593528dc7ca24.png',
-  KINTSU: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTj3F7vXwHFIlqYcntoM6enbZgnVXg0tUArIA&s',
-  sMON: 'https://pbs.twimg.com/profile_images/1884373636649209857/x6Fynec3_400x400.jpg',
-  Pancake: 'https://s2.coinmarketcap.com/static/img/coins/200x200/7186.png',
-  MON: 'https://pbs.twimg.com/profile_images/1792640194954964992/GLb33sYF_400x400.jpg',
+  MAGMA: '/magma.png',
+  gMON: '/gmon.png',
+  KINTSU: '/kintsu.png',
+  sMON: '/smon.jpg',
+  Pancake: '/pancake.png',
+  MON: '/mon.jpeg',
+  Synapse: '/logo.png',
 };
 
 
@@ -108,7 +130,6 @@ const EmptyState = () => (
     </div>
 );
 
-// --- Custom Select Component ---
 type CustomSelectOption = {
   value: string;
   label: string;
@@ -170,22 +191,26 @@ const CustomSelect = ({ value, onChange, options, placeholder }: { value: string
 
 
 // --- Main Activity Item Component ---
-function ActivityItem({ activity, isNew }: { activity: Activity; isNew: boolean }) {
-  const timeAgo = formatDistanceToNow(new Date(Number(activity.blockTimestamp) * 1000), { addSuffix: true });
+function ActivityItem({ activity }: { activity: UnifiedActivity }) {
+  const timeAgo = formatDistanceToNow(new Date(activity.timestamp), { addSuffix: true });
   const userShort = `${activity.user.slice(0, 6)}...${activity.user.slice(-4)}`;
-  
+
   const format = (val?: string, decimals = 18) => val ? parseFloat(formatUnits(BigInt(val), decimals)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 }) : '0';
-  
+
   const protocolToTokenMap: { [key: string]: string } = {
     MAGMA: 'gMON',
     KINTSU: 'sMON'
   };
 
-  const renderAmountDetails = () => {
+  const renderDetails = () => {
+    if (activity.isAutomated && activity.details) {
+      return <div className="text-gray-300">{activity.details}</div>;
+    }
+
     switch (activity.activityType) {
       case "Stake":
       case "Unstake":
-        const tokenName = protocolToTokenMap[activity.protocol] || activity.protocol;
+        const tokenName = activity.protocol ? protocolToTokenMap[activity.protocol] || activity.protocol : '?';
         return (
             <div className="flex items-center gap-2">
                 <Logo name={tokenName} size="md" />
@@ -215,28 +240,41 @@ function ActivityItem({ activity, isNew }: { activity: Activity; isNew: boolean 
   const actionText = {
       Stake: { verb: 'staked', icon: <TrendingUp className="w-4 h-4 text-green-400" /> },
       Unstake: { verb: 'unstaked', icon: <TrendingDown className="w-4 h-4 text-red-400" /> },
-      Swap: { verb: 'swapped', icon: <RefreshCw className="w-4 h-4 text-blue-400" /> }
+      Swap: { verb: 'swapped', icon: <RefreshCw className="w-4 h-4 text-blue-400" /> },
+      Rebalance: { verb: 'rebalanced', icon: <Bot className="w-4 h-4 text-purple-400" /> },
   }[activity.activityType] || { verb: 'performed an action', icon: <BarChart2 className="w-4 h-4 text-gray-400" /> };
 
   return (
-    <li className={`flex items-start space-x-4 p-4 transition-all duration-300 rounded-lg border-b border-gray-800 last:border-none ${isNew ? 'highlight-new' : 'hover:bg-gray-800/50'}`}>
-      <Logo name={activity.protocol} size="lg" />
+    <li className={`flex items-start space-x-4 p-4 transition-all duration-300 rounded-lg border-b border-gray-800 last:border-none ${activity.isNew ? 'highlight-new' : 'hover:bg-gray-800/50'}`}>
+      <Logo name={activity.isAutomated ? 'Synapse' : activity.protocol || undefined} size="lg" />
       <div className="flex-1">
         <div className="flex justify-between items-start">
             <div>
-                <div className="flex items-center gap-2 text-sm">
+                 <div className="flex items-center gap-2 text-sm flex-wrap">
                     {actionText.icon}
                     <a href={`https://testnet.monadexplorer.com/address/${activity.user}`} target="_blank" rel="noopener noreferrer" className="font-mono text-blue-400 hover:underline">{userShort}</a>
-                    <span className="text-gray-400">{actionText.verb} on</span>
-                    <strong className="font-medium text-white">{activity.protocol}</strong>
+                    <span className="text-gray-400">{actionText.verb}</span>
+                    {activity.protocol && (
+                         <>
+                            <span className="text-gray-400">on</span>
+                            <strong className="font-medium text-white">{activity.protocol}</strong>
+                         </>
+                    )}
+                    {activity.isAutomated && (
+                        <span className="ml-2 inline-flex items-center gap-1.5 bg-purple-900/50 text-purple-300 text-xs font-semibold px-2 py-0.5 rounded-full border border-purple-700/50">
+                            <Bot className="w-3 h-3"/> Automated
+                        </span>
+                    )}
                 </div>
-                <div className="mt-2">{renderAmountDetails()}</div>
+                <div className="mt-2">{renderDetails()}</div>
             </div>
             <div className="text-right flex-shrink-0 ml-4">
                  <p className="text-xs text-gray-500">{timeAgo}</p>
-                 <a href={`https://testnet.monadexplorer.com/tx/${activity.transactionHash}`} target="_blank" rel="noopener noreferrer" className="mt-1 inline-block text-gray-500 hover:text-blue-400 transition-colors" aria-label="View Transaction">
-                    <ExternalLink className="w-4 h-4" />
-                 </a>
+                 {activity.transactionHash && (
+                    <a href={`https://testnet.monadexplorer.com/tx/${activity.transactionHash}`} target="_blank" rel="noopener noreferrer" className="mt-1 inline-block text-gray-500 hover:text-blue-400 transition-colors" aria-label="View Transaction">
+                        <ExternalLink className="w-4 h-4" />
+                    </a>
+                 )}
             </div>
         </div>
       </div>
@@ -246,70 +284,153 @@ function ActivityItem({ activity, isNew }: { activity: Activity; isNew: boolean 
 
 // --- Main Feed Component ---
 export function ActivityFeed() {
-  const { loading, error, data, refetch } = useQuery<GetRecentActivityData>(
+  const { isAuthenticated, user: authUser } = useAuth();
+  const { smartAccountAddress } = useSmartAccount();
+
+  const { loading: graphLoading, error: graphError, data: graphData, refetch: graphRefetch } = useQuery<GetRecentActivityData>(
     GET_RECENT_ACTIVITY, { pollInterval: 30000, notifyOnNetworkStatusChange: true }
   );
+
+  const [dbActivities, setDbActivities] = useState<DbActivityType[]>([]);
+  const [dbLoading, setDbLoading] = useState(false);
+  const [dbError, setDbError] = useState<string | null>(null);
+
+  const fetchDbActivities = useCallback(async () => {
+    if (!isAuthenticated) return;
+
+    setDbLoading(true);
+    setDbError(null);
+    try {
+      const response = await fetch('/api/activity/db');
+      if (!response.ok) {
+        const errData = await response.json();
+        throw new Error(errData.error || `HTTP error! status: ${response.status}`);
+      }
+      const data = await response.json();
+      if (data.ok) {
+        setDbActivities(data.activities);
+      } else {
+        throw new Error(data.error || 'Failed to fetch DB activities');
+      }
+    } catch (error: any) {
+      console.error("Failed to fetch DB activities:", error);
+      setDbError(error.message || 'Could not load automated activities.');
+    } finally {
+      setDbLoading(false);
+    }
+  }, [isAuthenticated]);
+
+  useEffect(() => {
+    fetchDbActivities();
+    const interval = setInterval(fetchDbActivities, 45000);
+    return () => clearInterval(interval);
+  }, [fetchDbActivities]);
+
+  const loading = (graphLoading && !graphData) || (dbLoading && dbActivities.length === 0);
+  const combinedError = graphError || dbError;
 
   const [page, setPage] = useState(0);
   const [filterActivity, setFilterActivity] = useState<string>("");
   const [filterProtocol, setFilterProtocol] = useState<string>("");
   const [sortBy, setSortBy] = useState<"Newest" | "Oldest" | "Amount">("Newest");
+  const [showMySmartAccountOnly, setShowMySmartAccountOnly] = useState(false);
   
   const [previousActivityIds, setPreviousActivityIds] = useState<Set<string>>(new Set());
   const [newActivityIds, setNewActivityIds] = useState<Set<string>>(new Set());
   const itemsPerPage = 15;
 
+  const allActivities = useMemo(() => {
+    const combined: UnifiedActivity[] = [];
+
+    if (graphData?.Activity) {
+      graphData.Activity.forEach(act => {
+        combined.push({
+          ...act,
+          id: `graph-${act.id}`,
+          timestamp: Number(act.blockTimestamp) * 1000,
+          isAutomated: false,
+          transactionHash: act.transactionHash,
+        });
+      });
+    }
+
+    dbActivities.forEach(act => {
+      combined.push({
+        id: `db-${act._id}`,
+        activityType: act.transactionType,
+        protocol: 'Synapse',
+        user: act.userAddress,
+        details: act.details,
+        transactionHash: act.txHash || null,
+        timestamp: new Date(act.timestamp).getTime(),
+        isAutomated: true,
+      });
+    });
+
+    const uniqueActivities = Array.from(new Map(combined.map(item => [item.transactionHash || item.id, item])).values());
+    return uniqueActivities;
+  }, [graphData, dbActivities]);
+
   useEffect(() => {
-    if (data?.Activity) {
-      const currentIds = new Set(data.Activity.map(a => a.id));
+    if (allActivities.length > 0) {
+      const currentIds = new Set(allActivities.map(a => a.id));
       setPreviousActivityIds(prevIds => {
         if (prevIds.size > 0) {
           const newIds = new Set([...currentIds].filter(id => !prevIds.has(id)));
           setNewActivityIds(newIds);
+          if (newIds.size > 0) {
+              setTimeout(() => setNewActivityIds(new Set()), 3000);
+          }
         }
         return currentIds;
       });
     }
-  }, [data]);
+  }, [allActivities]);
+
 
   const { allProtocols, allActivityTypes } = useMemo(() => {
-    const defaultTypes = ["Stake", "Unstake", "Swap"];
-    const defaultProtocols = ["MAGMA", "KINTSU", "Pancake"];
+    const defaultTypes = ["Stake", "Unstake", "Swap", "Rebalance"];
+    const defaultProtocols = ["MAGMA", "KINTSU", "Pancake", "Synapse"];
 
-    if (!data?.Activity) {
-      return { 
-        allProtocols: defaultProtocols, 
-        allActivityTypes: defaultTypes 
-      };
-    }
+    const protocolsFromData = Array.from(new Set(allActivities.map(a => a.protocol).filter(Boolean))) as string[];
+    const typesFromData = Array.from(new Set(allActivities.map(a => a.activityType)));
     
-    const protocolsFromData = Array.from(new Set(data.Activity.map(a => a.protocol)));
-    const typesFromData = Array.from(new Set(data.Activity.map(a => a.activityType)));
-    
-    return { 
+    return {
       allProtocols: Array.from(new Set([...defaultProtocols, ...protocolsFromData])).sort(),
       allActivityTypes: Array.from(new Set([...defaultTypes, ...typesFromData])).sort()
     };
-  }, [data]);
+  }, [allActivities]);
 
   const filteredActivities = useMemo(() => {
-    if (!data?.Activity) return [];
-    let items = [...data.Activity]
+    let items = allActivities
       .filter(a => filterActivity ? a.activityType === filterActivity : true)
-      .filter(a => filterProtocol ? a.protocol === filterProtocol : true);
+      .filter(a => filterProtocol ? (a.protocol === filterProtocol || (filterProtocol === 'Synapse' && a.isAutomated)) : true);
+
+    if (showMySmartAccountOnly && smartAccountAddress && authUser) {
+        const currentUserEOA = authUser.address.toLowerCase();
+        const currentSA = smartAccountAddress.toLowerCase();
+
+        items = items.filter(activity => {
+            const activityUser = activity.user.toLowerCase();
+            // Graph data 'user' is the smart account.
+            // DB 'user' is the owner's EOA.
+            return activityUser === currentSA || activityUser === currentUserEOA;
+        });
+    }
 
     return items.sort((a, b) => {
       switch (sortBy) {
-        case "Oldest": return Number(a.blockTimestamp) - Number(b.blockTimestamp);
+        case "Oldest": return a.timestamp - b.timestamp;
         case "Amount":
-          const getAmount = (act: Activity) => BigInt(act.amount ?? act.fromAmount ?? '0');
+          const getAmount = (act: UnifiedActivity) => BigInt(act.amount ?? act.fromAmount ?? '0');
           const amountA = getAmount(a);
           const amountB = getAmount(b);
           return amountB > amountA ? 1 : amountA > amountB ? -1 : 0;
-        default: return Number(b.blockTimestamp) - Number(a.blockTimestamp);
+        default:
+             return b.timestamp - a.timestamp;
       }
     });
-  }, [data, filterActivity, filterProtocol, sortBy]);
+  }, [allActivities, filterActivity, filterProtocol, sortBy, showMySmartAccountOnly, smartAccountAddress, authUser]);
   
   const pageItems = filteredActivities.slice(page * itemsPerPage, (page + 1) * itemsPerPage);
   const totalPages = Math.ceil(filteredActivities.length / itemsPerPage);
@@ -318,6 +439,7 @@ export function ActivityFeed() {
     Stake: TrendingUp,
     Unstake: TrendingDown,
     Swap: RefreshCw,
+    Rebalance: Bot,
   };
 
   const sortOptions = [
@@ -338,18 +460,30 @@ export function ActivityFeed() {
       logoName: proto,
   }));
   
+  const handleRefetch = () => {
+      graphRefetch();
+      fetchDbActivities();
+  }
+  
   const renderContent = () => {
-    if (loading && !data) return <Loader />;
-    if (error) return <div className="text-center text-red-400 py-10 flex flex-col items-center"><XCircle className="w-8 h-8 mb-2" /><p>Error fetching activity: {error.message}</p></div>;
+    if (loading) return <Loader />;
+    if (combinedError) return (
+      <div className="text-center py-10 flex flex-col items-center">
+        <XCircle className="w-8 h-8 mb-2 text-red-400" />
+        <p className="text-red-400">Error fetching activity:</p>
+        {graphError && <p className="text-red-400 text-sm mt-1">Indexer: {graphError.message}</p>}
+        {dbError && <p className="text-red-400 text-sm mt-1">Database: {dbError}</p>}
+      </div>
+    );
     if (pageItems.length === 0) return <EmptyState />;
 
     return (
       <>
-        <ul>{pageItems.map(act => <ActivityItem key={act.id} activity={act} isNew={newActivityIds.has(act.id)} />)}</ul>
+        <ul>{pageItems.map(act => <ActivityItem key={act.id} activity={{...act, isNew: newActivityIds.has(act.id)}} />)}</ul>
         <div className="flex justify-between items-center mt-6 text-sm">
           <button onClick={() => setPage(p => Math.max(0, p - 1))} disabled={page === 0} className="flex items-center gap-1 px-3 py-2 rounded-md bg-gray-800 hover:bg-gray-700 disabled:bg-gray-800/50 disabled:text-gray-500 disabled:cursor-not-allowed transition"><ChevronLeft className="w-4 h-4" /> Previous</button>
           <span className="text-gray-400">Page {page + 1} of {totalPages > 0 ? totalPages : 1}</span>
-          <button onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))} disabled={page >= totalPages - 1} className="flex items-center gap-1 px-3 py-2 rounded-md bg-gray-800 hover:bg-gray-700 disabled:bg-gray-800/50 disabled:text-gray-500 disabled:cursor-not-allowed transition">Next <ChevronRight className="w-4 h-4" /></button>
+          <button onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))} disabled={page >= totalPages - 1 || totalPages === 0} className="flex items-center gap-1 px-3 py-2 rounded-md bg-gray-800 hover:bg-gray-700 disabled:bg-gray-800/50 disabled:text-gray-500 disabled:cursor-not-allowed transition">Next <ChevronRight className="w-4 h-4" /></button>
         </div>
       </>
     );
@@ -362,13 +496,39 @@ export function ActivityFeed() {
             <h2 className="text-2xl font-bold text-white">Live Activity</h2>
             <StatusIndicator />
         </div>
-        <button onClick={() => refetch()} disabled={loading} className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-800/50 text-white px-4 py-2 rounded-md text-sm font-semibold transition-colors shadow-lg shadow-blue-500/10"><RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />{loading ? 'Refreshing...' : 'Refresh'}</button>
+        <button onClick={handleRefetch} disabled={graphLoading || dbLoading} className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-800/50 text-white px-4 py-2 rounded-md text-sm font-semibold transition-colors shadow-lg shadow-blue-500/10">
+            <RefreshCw className={`w-4 h-4 ${(graphLoading || dbLoading) ? 'animate-spin' : ''}`} />
+            {(graphLoading || dbLoading) ? 'Refreshing...' : 'Refresh All'}
+        </button>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4 p-4 bg-black/20 border border-gray-800 rounded-lg">
           <CustomSelect value={filterActivity} onChange={(val) => {setFilterActivity(val); setPage(0);}} options={[{ value: '', label: 'All Activity Types', icon: List }, ...activityOptions]} placeholder="All Activity Types" />
           <CustomSelect value={filterProtocol} onChange={(val) => {setFilterProtocol(val); setPage(0);}} options={[{ value: '', label: 'All Protocols', icon: List }, ...protocolOptions]} placeholder="All Protocols" />
           <CustomSelect value={sortBy} onChange={(val) => setSortBy(val as any)} options={sortOptions} placeholder="Sort by..." />
       </div>
+
+       <div className="flex items-center justify-end mb-4 px-1">
+          <Switch.Group as="div" className="flex items-center">
+            <Switch
+              checked={showMySmartAccountOnly}
+              onChange={(checked) => {setShowMySmartAccountOnly(checked); setPage(0);}}
+              disabled={!smartAccountAddress || !isAuthenticated}
+              className={`${
+                showMySmartAccountOnly ? 'bg-blue-600' : 'bg-gray-700'
+              } relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-gray-900 disabled:opacity-50 disabled:cursor-not-allowed`}
+            >
+              <span
+                className={`${
+                  showMySmartAccountOnly ? 'translate-x-6' : 'translate-x-1'
+                } inline-block h-4 w-4 transform rounded-full bg-white transition-transform`}
+              />
+            </Switch>
+            <Switch.Label as="span" className="ml-3 text-sm">
+              <span className={`font-medium ${!smartAccountAddress ? 'text-gray-500' : 'text-gray-300'}`}>Show My Account's Transactions</span>
+            </Switch.Label>
+          </Switch.Group>
+        </div>
+
       {renderContent()}
     </div>
   );

@@ -3,7 +3,7 @@ import { ApolloLink } from '@apollo/client/core';
 
 
 const httpLink = new HttpLink({
-  uri: 'https://indexer.dev.hyperindex.xyz/7d169b2/v1/graphql',
+  uri: 'http://localhost:8080/v1/graphql',
 });
 
 // Optional: Add middleware (if needed)

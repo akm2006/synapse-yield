@@ -2,7 +2,8 @@
 
 import Link from 'next/link';
 import { ChevronRightIcon, ShieldCheckIcon, BoltIcon, CurrencyDollarIcon, SparklesIcon, ArrowPathIcon, LockClosedIcon } from '@heroicons/react/24/outline';
-import { motion } from 'framer-motion';
+import Header  from '@/components/Header';
+import Head from 'next/head';
 
 export default function LandingPage() {
   const features = [
@@ -53,7 +54,9 @@ export default function LandingPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-950 via-blue-950 to-purple-950 overflow-hidden">
-      {/* Animated Background Elements */}
+      
+      
+<Header/>
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
         <div className="absolute -top-1/2 -left-1/2 w-full h-full bg-gradient-to-br from-blue-500/10 to-transparent rounded-full blur-3xl animate-pulse"></div>
         <div className="absolute -bottom-1/2 -right-1/2 w-full h-full bg-gradient-to-tl from-purple-500/10 to-transparent rounded-full blur-3xl animate-pulse delay-1000"></div>

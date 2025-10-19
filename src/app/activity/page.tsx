@@ -1,17 +1,18 @@
 import { ActivityFeed } from "@/components/ActivityFeed";
+import Header from "@/components/Header";
 import { Layers, Database } from 'lucide-react';
 
-// --- Logo Component for the Page ---
+
 const TechLogo = ({ name, src, href }: { name: string, src: string, href: string }) => (
-  <a 
-    href={href} 
-    target="_blank" 
+  <a
+    href={href}
+    target="_blank"
     rel="noopener noreferrer"
     className="group flex items-center gap-3 transition-opacity hover:opacity-100 opacity-75"
   >
-    <img 
-      src={src} 
-      alt={`${name} logo`} 
+    <img
+      src={src}
+      alt={`${name} logo`}
       className="h-8 w-8 object-contain transition-all duration-300 group-hover:grayscale-0 grayscale"
     />
     <span className="text-sm font-semibold text-gray-300 group-hover:text-white">{name}</span>
@@ -20,9 +21,9 @@ const TechLogo = ({ name, src, href }: { name: string, src: string, href: string
 
 export default function ActivityFeedPage() {
   return (
-    <main className="relative min-h-screen w-full overflow-x-hidden bg-gray-950 text-white">
-      {/* Background Grid Pattern */}
-      <div 
+    <main className="relative pt-10 min-h-screen w-full overflow-x-hidden bg-gray-950 text-white">
+    <Header/>
+      <div
         className="absolute inset-0 z-0 opacity-[0.03]"
         style={{
           backgroundImage: `linear-gradient(to right, rgba(200, 200, 220, 0.5) 1px, transparent 1px),
@@ -32,7 +33,7 @@ export default function ActivityFeedPage() {
       />
 
       {/* Animated Gradient Background */}
-      <div 
+      <div
         className="absolute inset-0 z-[1] opacity-30 bg-animation"
         style={{
           backgroundImage: `radial-gradient(at 27% 37%, hsla(215, 98%, 61%, 1) 0px, transparent 50%),
@@ -45,7 +46,7 @@ export default function ActivityFeedPage() {
           backgroundSize: '200% 200%',
         }}
       />
-      
+
       {/* Vignette effect to focus the center */}
       <div className="absolute inset-0 z-[2] bg-gradient-to-t from-gray-950 via-transparent to-gray-950/50" />
       <div className="absolute inset-0 z-[2] bg-gradient-to-r from-gray-950 via-transparent to-gray-950" />
@@ -57,14 +58,14 @@ export default function ActivityFeedPage() {
             <Database className="w-4 h-4" />
             <span>Real-time Data Indexed by Envio</span>
           </div>
-          <h1 
+          <h1
             className="text-4xl md:text-5xl font-bold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-gray-100 to-gray-400"
             style={{ textShadow: '0 2px 10px rgba(0, 0, 0, 0.3)' }}
           >
             Live On-Chain Activity
           </h1>
-          <p className="mt-4 text-base md:text-lg text-gray-400 max-w-2xl mx-auto">
-            A real-time feed of all staking, unstaking, and swap events happening on the Monad Testnet.
+          <p className="mt-4 text-base md:text-lg text-gray-400 max-w-3xl mx-auto">
+            This feed displays recent public staking events from Kintsu & Magma and gMON/sMON swaps on PancakeSwap, along with all automated rebalance transactions from the Synapse Yield agent.
           </p>
         </header>
 
@@ -75,15 +76,15 @@ export default function ActivityFeedPage() {
         <footer className="w-full max-w-4xl pb-8 text-center text-gray-500 text-sm">
           <div className="border-t border-gray-800/50 my-6"></div>
           <div className="flex flex-col md:flex-row items-center justify-center gap-8">
-            <TechLogo 
-              name="Powered by Monad" 
-              src="https://i0.wp.com/www.gizmotimes.com/wp-content/uploads/2023/10/Monad-Logo.png?fit=1920%2C1080&ssl=1" 
-              href="https://www.monad.xyz/" 
+            <TechLogo
+              name="Powered by Monad"
+              src="https://i0.wp.com/www.gizmotimes.com/wp-content/uploads/2023/10/Monad-Logo.png?fit=1920%2C1080&ssl=1"
+              href="https://www.monad.xyz/"
             />
-            <TechLogo 
-              name="Indexed by Envio" 
-              src="https://avatars.githubusercontent.com/u/135992464?s=280&v=4" 
-              href="https://envio.dev/" 
+            <TechLogo
+              name="Indexed by Envio"
+              src="https://avatars.githubusercontent.com/u/135992464?s=280&v=4"
+              href="https://envio.dev/"
             />
           </div>
           <p className="mt-6 text-xs text-gray-600">Last updated: October 2025</p>
