@@ -21,12 +21,10 @@ import {
   ClipboardDocumentIcon, 
   PencilSquareIcon 
 } from '@heroicons/react/24/outline';
-// Use useBalance from wagmi to get EOA balance
 import { useAccount, useSendTransaction, useWaitForTransactionReceipt, useBalance } from 'wagmi';
-import { parseUnits, formatUnits, Address } from 'viem'; // Import Address
+import { parseUnits, formatUnits, } from 'viem';
 import Link from 'next/link';
 import { useAuth } from '@/providers/AuthProvider';
-import { monadTestnet } from '@/lib/smartAccountClient'; // Import chain info if needed for useBalance
 
 
 
@@ -43,12 +41,12 @@ const GatedState = ({
   buttonText: string;
   buttonLink: string;
 }) => (
-  <LiquidBackground>
-    <div className="min-h-screen flex items-center justify-center p-4">
-      <Card className="max-w-md w-full text-center">
-        <div className="p-6">
-          {icon}
-          <h2 className="text-2xl font-bold text-white mb-2 mt-4">{title}</h2>
+  <div className="fixed inset-0 flex items-center justify-center z-50">
+    <div className="relative w-full max-w-md mx-auto px-6">
+      <Card className="backdrop-blur-md bg-slate-900/60 border border-white/10 text-center shadow-2xl">
+        <div className="p-8 flex flex-col items-center">
+          <div className="mb-4">{icon}</div>
+          <h2 className="text-2xl font-bold text-white mb-2">{title}</h2>
           <p className="text-gray-400 mb-8">{description}</p>
           <Link
             href={buttonLink}
@@ -63,8 +61,9 @@ const GatedState = ({
         </div>
       </Card>
     </div>
-  </LiquidBackground>
+  </div>
 );
+
 
 
 // --- Main Page Component ---
