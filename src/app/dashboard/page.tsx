@@ -70,7 +70,7 @@ export default function Dashboard() {
   // Gate for authentication
   if (!isAuthenticated) {
     return (
-      <div className="min-h-screen flex items-center justify-center text-center p-4">
+      <div className="flex items-center justify-center text-center p-4">
         <div className="max-w-md bg-slate-900/50 p-8 rounded-2xl border border-white/10 shadow-xl">
           <h2 className="text-2xl font-bold text-white mb-3">Please Log In</h2>
           <p className="text-gray-400">
@@ -83,7 +83,7 @@ export default function Dashboard() {
 
   // Main dashboard render
   return (
-    <div className="min-h-screen pb-20">
+    <div className="min-h-screen">
   
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">

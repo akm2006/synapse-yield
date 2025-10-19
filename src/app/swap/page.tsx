@@ -9,18 +9,15 @@ import { useToasts } from '@/providers/ToastProvider';
 import SwapInterface from '@/components/SwapInterface';
 import { useAuth } from '@/providers/AuthProvider';
 import {
-  ArrowsRightLeftIcon, // Keep swap icon
   ShieldExclamationIcon,
-  KeyIcon, // Keep delegation icon
-  LockClosedIcon, // Keep smart account icon
+  KeyIcon, 
+  LockClosedIcon, 
   ArrowRightIcon,
 } from '@heroicons/react/24/outline';
 import Link from 'next/link';
 import Card from '@/components/common/Card'; // Import Card
-import LiquidBackground from '@/components/layout/LiquidBackground'; // Import Background
 
-// --- Gated State Component (Themed) ---
-// (Reusing the same GatedState structure from manage-funds)
+
 const GatedState = ({
   icon,
   title,
@@ -34,12 +31,12 @@ const GatedState = ({
   buttonText: string;
   buttonLink: string;
 }) => (
-  <LiquidBackground>
-    <div className="min-h-screen flex items-center justify-center p-4">
-      <Card className="max-w-md w-full text-center">
-        <div className="p-6">
-          {icon}
-          <h2 className="text-2xl font-bold text-white mb-2 mt-4">{title}</h2>
+  <div className="fixed inset-0 flex items-center justify-center z-50">
+    <div className="relative w-full max-w-md mx-auto px-6">
+      <Card className="backdrop-blur-md bg-slate-900/60 border border-white/10 text-center shadow-2xl">
+        <div className="p-8 flex flex-col items-center">
+          <div className="mb-4">{icon}</div>
+          <h2 className="text-2xl font-bold text-white mb-2">{title}</h2>
           <p className="text-gray-400 mb-8">{description}</p>
           <Link
             href={buttonLink}
@@ -54,7 +51,7 @@ const GatedState = ({
         </div>
       </Card>
     </div>
-  </LiquidBackground>
+  </div>
 );
 
 
@@ -99,14 +96,12 @@ export default function SwapPage() {
   // Loading States
  if (isAuthLoading || (isAuthenticated && !smartAccountAddress && checkingDelegation)) {
     return (
-       <LiquidBackground>
            <div className="min-h-screen flex items-center justify-center text-center">
                <div>
                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-400 mx-auto"></div>
                <p className="mt-4 text-gray-400">Loading Swap Interface...</p>
                </div>
            </div>
-       </LiquidBackground>
    );
  }
 
@@ -138,14 +133,12 @@ export default function SwapPage() {
   if (checkingDelegation) {
      // Show loading specifically for delegation check after SA is confirmed
      return (
-        <LiquidBackground>
             <div className="min-h-screen flex items-center justify-center text-center">
                 <div>
                 <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-400 mx-auto"></div>
                 <p className="mt-4 text-gray-400">Checking Delegation Status...</p>
                 </div>
             </div>
-        </LiquidBackground>
      );
   }
 
@@ -163,32 +156,19 @@ export default function SwapPage() {
 
   // --- Main Render ---
   return (
-    <LiquidBackground>
-      <main className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pt-16 pb-24 flex justify-center"> {/* Centering content */}
-        {/* Removed Header section */}
+  
+      <main className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 flex justify-center"> {/* Centering content */}
+    
 
-        {/* Swap Interface Card */}
-        <div className="w-full max-w-lg"> {/* Constrain width */}
-          <Card> {/* Wrap SwapInterface in Card */}
-              <div className="flex items-center gap-4 mb-6 pb-4 border-b border-slate-700/50">
-                  <div className="flex-shrink-0 h-12 w-12 flex items-center justify-center rounded-lg bg-slate-800 ring-2 ring-purple-500/30">
-                      <ArrowsRightLeftIcon className="h-7 w-7 text-purple-400" />
-                  </div>
-                  <div>
-                      <h2 className="text-xl font-semibold text-white">Token Swap</h2>
-                      <p className="text-sm text-gray-400">Exchange tokens via your Smart Account.</p>
-                  </div>
-              </div>
+        <div className="w-full max-w-lg">
               <SwapInterface
                 smartAccountAddress={smartAccountAddress}
                 balances={balances}
-                onLog={addLog}
-                disabled={!hasDelegation || !smartAccountAddress} // Ensure it's disabled correctly
-                onBalanceRefresh={() => fetchBalances(false)} // Pass fetchBalances for refresh
+                disabled={!hasDelegation || !smartAccountAddress}
+                onBalanceRefresh={() => fetchBalances(false)}
               />
-          </Card>
+          
         </div>
       </main>
-    </LiquidBackground>
   );
 }
