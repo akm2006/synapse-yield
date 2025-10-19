@@ -190,7 +190,7 @@ export default function DelegationManager({
             What is Delegation?
           </h4>
           <p className="text-sm text-gray-400">
-            You are signing a message that grants our secure backend wallet (the Delegate) permission to perform specific actions on your Smart Account's behalf. Your keys never leave your wallet.
+            You are signing a message that grants our secure backend wallet (the Delegate) permission to perform specific actions on your Smart Account&apos;s behalf. Your keys never leave your wallet.
           </p>
         </div>
 

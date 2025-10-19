@@ -20,7 +20,6 @@ import {
 } from '@heroicons/react/24/outline';
 import { motion } from 'framer-motion';
 import Card from '@/components/common/Card';
-import LiquidBackground from '@/components/layout/LiquidBackground';
 import Link from 'next/link';
 
 // --- Sub-components for Staking Page ---

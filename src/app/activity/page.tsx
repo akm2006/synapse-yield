@@ -1,7 +1,7 @@
 import { ActivityFeed } from "@/components/ActivityFeed";
 import Header from "@/components/Header";
-import { Layers, Database } from 'lucide-react';
-
+import {Database } from 'lucide-react';
+import Image from "next/image";
 
 const TechLogo = ({ name, src, href }: { name: string, src: string, href: string }) => (
   <a
@@ -10,11 +10,13 @@ const TechLogo = ({ name, src, href }: { name: string, src: string, href: string
     rel="noopener noreferrer"
     className="group flex items-center gap-3 transition-opacity hover:opacity-100 opacity-75"
   >
-    <img
-      src={src}
-      alt={`${name} logo`}
-      className="h-8 w-8 object-contain transition-all duration-300 group-hover:grayscale-0 grayscale"
-    />
+   <Image
+  src={src}
+  alt={`${name} logo`}
+  width={32} // Add appropriate width
+  height={32} // Add appropriate height
+  className="h-8 w-8 object-contain transition-all duration-300 group-hover:grayscale-0 grayscale"
+/>
     <span className="text-sm font-semibold text-gray-300 group-hover:text-white">{name}</span>
   </a>
 );

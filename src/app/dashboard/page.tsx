@@ -6,7 +6,6 @@ import { useAuth } from "@/providers/AuthProvider";
 import { useSmartAccount } from "@/hooks/useSmartAccount";
 import { useLogger } from "@/providers/LoggerProvider";
 import { useBalances } from "@/providers/BalanceProvider";
-import { motion } from "framer-motion"; // motion is imported but not used, can be removed if you wish
 
 // Import the new and refactored components
 import SmartAccountManager from "@/components/SmartAccountManager";
@@ -92,7 +91,7 @@ export default function Dashboard() {
             {!smartAccountAddress ? (
               // Step 1: Create/Derive Smart Account
               <SmartAccountManager
-                onSmartAccountReady={(address: Address) => {
+                onSmartAccountReady={() => {
                   if (setSmartAccountReady) setSmartAccountReady(true);
                 }}
               />

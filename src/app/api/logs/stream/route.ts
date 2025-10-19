@@ -14,7 +14,7 @@ export async function GET(req: Request) {
 
   const stream = new ReadableStream<Uint8Array>({
     start(controller) {
-      const send = (event: string, data: any) => {
+      const send = (event: string, data: unknown) => {
         const payload = `event: ${event}\n` + `data: ${JSON.stringify(data)}\n\n`;
         controller.enqueue(encoder.encode(payload));
       };

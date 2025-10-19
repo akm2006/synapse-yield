@@ -1,8 +1,8 @@
 import mongoose, { Schema, Document, Model } from 'mongoose';
-
+import { Delegation } from '@metamask/delegation-toolkit';
 export interface IUser extends Document {
   address: string;
-  delegation?: any;
+  delegation?: Delegation;
   automationEnabled: boolean; // Add this new field
 }
 

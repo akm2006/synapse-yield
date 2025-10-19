@@ -1,7 +1,7 @@
 // src/components/RebalanceEngine.tsx  
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState,  useMemo } from 'react';
 import type { Address } from 'viem';
 import { useBalances } from '@/providers/BalanceProvider';
 import { determineRebalanceAction } from '@/utils/yieldOptimizer';
@@ -10,10 +10,9 @@ import { useToasts } from '@/providers/ToastProvider';
 import { useLogger } from '@/providers/LoggerProvider';
 import { motion } from 'framer-motion';
 import { ArrowPathIcon, BoltIcon } from '@heroicons/react/24/outline';
-
 interface RebalanceEngineProps {
   smartAccountAddress: Address;
-  delegation: any;
+  delegation: boolean;
   onLog: (message: string) => void;
   onRebalanceComplete: () => void;
   disabled?: boolean;

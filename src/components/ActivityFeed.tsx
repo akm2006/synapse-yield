@@ -14,6 +14,7 @@ import {
 import { useAuth } from '@/providers/AuthProvider';
 import { useSmartAccount } from '@/hooks/useSmartAccount';
 import { IActivity as DbActivityType } from '@/models/Activity';
+import Image from 'next/image';
 
 // --- Types ---
 interface GraphActivity {
@@ -98,11 +99,13 @@ const Logo = ({ name, size = 'md' }: { name?: string; size?: 'sm' | 'md' | 'lg' 
   }
 
   return (
-    <img
-      src={src}
-      alt={`${name || 'token'} logo`}
-      className={`${sizeClasses} rounded-full bg-gray-800 border border-gray-700/50 shadow-md`}
-    />
+   <Image
+  src={src}
+  alt={`${name} logo`}
+  width={32} // Add appropriate width
+  height={32} // Add appropriate height
+  className="h-8 w-8 object-contain transition-all duration-300 group-hover:grayscale-0 grayscale"
+/>
   );
 };
 
@@ -524,7 +527,7 @@ export function ActivityFeed() {
               />
             </Switch>
             <Switch.Label as="span" className="ml-3 text-sm">
-              <span className={`font-medium ${!smartAccountAddress ? 'text-gray-500' : 'text-gray-300'}`}>Show My Account's Transactions</span>
+              <span className={`font-medium ${!smartAccountAddress ? 'text-gray-500' : 'text-gray-300'}`}>Show My Account&apos;s Transactions</span>
             </Switch.Label>
           </Switch.Group>
         </div>

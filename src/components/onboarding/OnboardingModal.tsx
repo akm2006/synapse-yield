@@ -7,7 +7,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Address, parseUnits } from 'viem';
 import { useAccount } from 'wagmi';
 import {
-  XMarkIcon,
+ 
   CheckCircleIcon,
   ArrowPathIcon,
   CurrencyDollarIcon,
