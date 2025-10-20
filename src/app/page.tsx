@@ -2,9 +2,9 @@
 
 import Link from "next/link"
 import { motion, useScroll, useTransform } from "framer-motion"
-import { Canvas } from "@react-three/fiber"
+import { Canvas,useFrame } from "@react-three/fiber"
 import { Float, PerspectiveCamera, Environment, Sphere, MeshDistortMaterial, Sparkles } from "@react-three/drei"
-import { Suspense, useRef, useMemo, memo } from "react"
+import { Suspense, useRef,useEffect, useMemo, memo } from "react"
 import * as THREE from "three"
 import Header from "@/components/Header"
 import {
@@ -25,80 +25,63 @@ import {
 import { CheckCircleIcon } from "@heroicons/react/24/solid"
 import Image from "next/image"
 
-// 3D Logo Component using image texture
-const Logo3D = memo(function Logo3D({
-  imageUrl,
+// Generic Coin 3D Model
+const Coin3D = memo(function Coin3D({
   position,
+  imageUrl,
+  color = "#a855f7", // Default color (purple like Monad)
   scale = 1,
-  rotation = [0, 0, 0],
+  rotation = [0, 0, 0]
 }: {
-  imageUrl: string
   position: [number, number, number]
+  imageUrl: string
+  color?: string
   scale?: number
   rotation?: [number, number, number]
 }) {
   const texture = useMemo(() => {
     try {
-      return new THREE.TextureLoader().load(imageUrl)
+      // Ensure texture is loaded correctly, especially for PNGs with transparency
+      const loadedTexture = new THREE.TextureLoader().load(imageUrl)
+      loadedTexture.colorSpace = THREE.SRGBColorSpace // Important for color accuracy
+      return loadedTexture
     } catch {
-      return new THREE.Texture()
+      return new THREE.Texture() // Fallback texture
     }
   }, [imageUrl])
 
   return (
-    <Float speed={1.5} rotationIntensity={0.3} floatIntensity={0.5}>
-      <mesh position={position} rotation={rotation} scale={scale}>
-        <planeGeometry args={[2, 2]} />
-        <meshStandardMaterial
-          map={texture}
-          transparent
-          side={THREE.DoubleSide}
-          emissive="#000000"
-          emissiveIntensity={0.2}
-        />
-      </mesh>
-    </Float>
-  )
-})
-
-// Monad Coin 3D Model
-const MonadCoin = memo(function MonadCoin({ position }: { position: [number, number, number] }) {
-  const texture = useMemo(() => {
-    try {
-      return new THREE.TextureLoader().load("/images/feature-monad.png")
-    } catch {
-      return new THREE.Texture()
-    }
-  }, [])
-
-  return (
     <Float speed={1.8} rotationIntensity={0.5} floatIntensity={0.4}>
-      <group position={position}>
+      <group position={position} scale={scale} rotation={rotation}> {/* Apply scale to the group */}
+        {/* Cylinder Body */}
         <mesh rotation={[Math.PI / 2, 0, 0]}>
           <cylinderGeometry args={[0.8, 0.8, 0.15, 64]} />
           <meshStandardMaterial
-            color="#a855f7"
+            color={color}
             metalness={0.9}
             roughness={0.1}
-            emissive="#a855f7"
+            emissive={color}
             emissiveIntensity={0.1}
           />
         </mesh>
 
+        {/* Front Face with Texture */}
         <mesh position={[0, 0, 0.08]} rotation={[0, 0, 0]}>
-          <circleGeometry args={[0.6, 64]} />
+          <circleGeometry args={[0.75, 64]} />
           <meshStandardMaterial
             map={texture}
-            color="#ffffff"
-            transparent
+            color="#ffffff" // White base for texture visibility
+            transparent // Ensure transparency is enabled
             side={THREE.DoubleSide}
             metalness={0.8}
             roughness={0.2}
             emissive="#000000"
             emissiveIntensity={0}
+            alphaTest={0.5} // Helps with transparency edges
           />
         </mesh>
 
+        {/* Back Face with Texture (optional, mirrored) */}
         <mesh position={[0, 0, -0.08]} rotation={[0, Math.PI, 0]}>
           <circleGeometry args={[0.6, 64]} />
           <meshStandardMaterial
@@ -110,6 +93,7 @@ const MonadCoin = memo(function MonadCoin({ position }: { position: [number, num
             roughness={0.2}
             emissive="#000000"
             emissiveIntensity={0}
+             alphaTest={0.5}
           />
         </mesh>
       </group>
@@ -117,25 +101,107 @@ const MonadCoin = memo(function MonadCoin({ position }: { position: [number, num
   )
 })
 
-// Hero 3D Scene with logo models
+
+
+
+const MonadCoin = memo(function MonadCoin({ position }: { position: [number, number, number] }) {
+  // Can reuse Coin3D or keep this specific implementation if preferred
+  return <Coin3D position={position} imageUrl="/images/feature-monad.png" color="#a855f7" scale={1} />;
+})
+// Hero 3D Scene with updated coins
 const Hero3DScene = memo(function Hero3DScene() {
+const orbitingLightRef = useRef<THREE.SpotLight>(null);
+const lightTargetRef = useRef<THREE.Object3D>(new THREE.Object3D()); // Create target object
+  // Animation loop using useFrame
+ useFrame((state) => {
+    if (orbitingLightRef.current) {
+      const time = state.clock.elapsedTime;
+      const radius = 5.0; // Slightly larger radius for the spotlight
+      const speed = 0.7; // Adjust speed
+
+      // Calculate position for clockwise orbit
+      const x = Math.cos(-time * speed) * radius;
+      const z = Math.sin(-time * speed) * radius;
+      const y = 1.5 + Math.sin(time * speed * 0.5) * 0.8; // Adjust height/oscillation
+
+      orbitingLightRef.current.position.set(x, y, z);
+
+      // Make sure the target is updated if it moves (though it's static here)
+      orbitingLightRef.current.target = lightTargetRef.current;
+      // Optional: Slightly move the target point for a sweeping effect
+      // lightTargetRef.current.position.x = Math.sin(time * 0.3) * 0.5;
+    }
+  });
+ useEffect(() => {
+    if (lightTargetRef.current) {
+        lightTargetRef.current.position.set(0, 0, 0); // Point towards the center coin
+    }
+  }, []);
+  useEffect(() => {
+    if (lightTargetRef.current) {
+        lightTargetRef.current.position.set(0, 0, 0); // Point towards the center coin
+    }
+  }, []);
   return (
     <>
       <PerspectiveCamera makeDefault position={[0, 0, 8]} />
-      <ambientLight intensity={0.5} />
-      <directionalLight position={[10, 10, 5]} intensity={1} />
-      <pointLight position={[-10, -10, -5]} intensity={0.5} color="#0ea5e9" />
+      {/* Reduced ambient light to make point light more prominent */}
+      <ambientLight intensity={5} />
+      {/* Keep a directional light for overall scene lighting */}
+      <directionalLight position={[100, 100, 50]} intensity={0.8} />
+<primitive object={lightTargetRef.current} />
+   <spotLight
+        ref={orbitingLightRef}
+        intensity={500}      // Spotlights often need higher intensity
+        distance={30}       // How far the light reaches
+        angle={Math.PI / 10} // Narrow cone angle for a "ray" (adjust: smaller is narrower)
+        penumbra={0.2}      // Softness of the cone edge (0=sharp, 1=soft)
+        decay={1.2}         // How quickly light falls off
+        color="#ffffff"     // Example: Teal color
+        position={[5, 2, 0]} // Initial position
+         target={lightTargetRef.current} // Set target (already done in useFrame)
+        //  castShadow // Optional: enable shadows for more realism (can impact performance)
+      />
+      {/* --- End SpotLight --- */}
+      {/* 1. App Logo Coin (Center) */}
+      <Coin3D
+          imageUrl="/synapse.png"         // Use your app logo
+          position={[-5.5, 1.2, 0]}        // Center position
+          color="#0ea5e9"              // Example color (cyan)
+          scale={1.1}   
+          rotation={[-0.3, 0.8, 0.1]}              // Slightly larger in the center
+      />
+<Coin3D
+          imageUrl="/images/envio-logo.png"         // Use your app logo
+          position={[5.5, -1.5, 0]}        // Center position
+          color="#f5bd25"              // Example color (cyan)
+          scale={0.9}   
+          rotation={[-0.2, -1.0, 0.5]}              // Slightly larger in the center
+      />
+      {/* 2. Monad Coin (Right Side) */}
+     
+       {/* Adjusted position */}
+<Coin3D 
+position={[5, 1.5, -1]} 
+imageUrl="/images/feature-monad.png" 
+color="#a855f7" 
+scale={1}
+rotation={[-0.1,0.2,0]}/>
+      {/* 3. MetaMask Coin (Left Side) */}
+      <Coin3D
+          imageUrl="/meta-mask.png" // Use MetaMask logo
+          position={[-5, -2, -0.5]} // Adjusted position
+          color="#F6851B"              // MetaMask orange color
+          scale={1} 
+          rotation={[-0.5,0.8,0]}                    // Standard scale
+      />
+      {/* --- Removed Pimlico Logo --- */}
 
-      <Logo3D imageUrl="/meta-mask.png" position={[0, 0, 0]} scale={1.2} />
-      <MonadCoin position={[3, 0.5, -1]} />
-      <Logo3D imageUrl="/images/pimlico-logo.png" position={[-2.5, -0.5, -0.5]} scale={0.8} />
-
-      <Sparkles count={100} scale={10} size={2} speed={0.3} color="#0ea5e9" />
+    
       <Environment preset="city" />
     </>
   )
 })
-
 // Feature Card 3D Icon
 const Feature3DIcon = memo(function Feature3DIcon({ imageUrl, color }: { imageUrl: string; color: string }) {
   const texture = useMemo(() => {
