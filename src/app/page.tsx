@@ -3,7 +3,7 @@
 import Link from "next/link"
 import { motion, useScroll, useTransform } from "framer-motion"
 import { Canvas,useFrame } from "@react-three/fiber"
-import { Float, PerspectiveCamera, Environment, Sphere, MeshDistortMaterial, Sparkles } from "@react-three/drei"
+import { Float, PerspectiveCamera, Environment, Sphere, MeshDistortMaterial, Sparkles,Stars } from "@react-three/drei"
 import { Suspense, useRef,useEffect, useMemo, memo } from "react"
 import * as THREE from "three"
 import Header from "@/components/Header"
@@ -196,9 +196,19 @@ rotation={[-0.1,0.2,0]}/>
           rotation={[-0.5,0.8,0]}                    // Standard scale
       />
       {/* --- Removed Pimlico Logo --- */}
-
+{/* --- Add Subtle Stars --- */}
+      <Stars
+        radius={100} // Distance of stars
+        depth={50} // Depth of star field
+        count={3000} // Number of stars (reduce for more subtlety)
+        factor={3} // Size factor (reduce for smaller stars)
+        saturation={0} // Makes stars white/grayscale
+        fade // Stars fade in/out at edges
+        speed={0.3} // Slow rotation speed
+      />
+      {/* --- End Stars --- */}
     
-      <Environment preset="city" />
+      <Environment preset="night" />
     </>
   )
 })
@@ -597,19 +607,39 @@ export default function LandingPage() {
             </Canvas>
           </motion.div>
 
-          <div className="mx-auto max-w-6xl">
+          <div className="mx-auto max bg-red-w-6xl">
             <div className="text-center">
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] as any }}
               >
-                <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-blue-500/20 bg-blue-500/10 px-4 py-2 backdrop-blur-md">
-                  <SparklesIcon className="h-4 w-4 text-blue-400" />
-                  <span className="text-sm font-medium text-blue-300">
-                    Smart Accounts × MetaMask Delegation × Monad
-                  </span>
+                <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-blue-500/60 bg-blue-500/30 px-4 py-2 backdrop-blur-md text-md font-medium text-blue-200">
+                   {/* Removed SparklesIcon */}
+                   {/* MetaMask Logo and Text */}
+                   <div className=" rounded-full">
+                   <Image
+                       src="/images/tech-metamask.png" // Verify path
+                       alt="MetaMask Logo"
+                       width={20} // Small size for inline
+                       height={20}
+                       className="inline-block h-6 w-6 align-middle" // Styling for inline display
+                   /></div>
+                   <span className="align-middle">MetaMask Delegation</span>
+
+                   <span className="mx-1 align-middle">×</span> {/* Separator */}
+
+                   {/* Monad Logo and Text */}
+                   <Image
+                       src="/monad-logo.png" // Verify path
+                       alt="Monad Logo"
+                       width={16}
+                       height={16}
+                       className="inline-block h-6 w-6 align-middle"
+                   />
+                   <span className="align-middle">Monad</span>
                 </div>
+                {/* --- End Modified Badge Div --- */}
               </motion.div>
 
               <motion.h1
