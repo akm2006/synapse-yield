@@ -5,7 +5,7 @@ import type { Address } from 'viem';
 import { useBalances } from '@/providers/BalanceProvider';
 import APYDisplay from './APYDisplay';
 import RebalanceEngine from './RebalanceEngine';
-import { generateSimulatedAPY } from '@/utils/yieldOptimizer';
+import { generateSimulatedAPY } from '@/lib/yieldOptimizer';
 import Card from './common/Card';
 import { ArrowTrendingUpIcon, InformationCircleIcon, ArrowRightIcon, KeyIcon } from '@heroicons/react/24/outline';
 import Link from 'next/link';

@@ -6,7 +6,7 @@ import { Implementation, toMetaMaskSmartAccount } from '@metamask/delegation-too
 import { monadTestnet, getServerPublicClient } from '@/lib/smartAccountClient';
 import { CONTRACTS } from '@/lib/contracts';
 import { kintsuAbi , gMonAbi} from '@/lib/abis';
-import { determineRebalanceAction } from '@/utils/yieldOptimizer';
+import { determineRebalanceAction } from '@/lib/yieldOptimizer';
 import dbConnect from '@/lib/db';
 import User from '@/models/User';
 import Activity from '@/models/Activity';

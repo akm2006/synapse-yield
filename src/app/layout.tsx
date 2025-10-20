@@ -13,9 +13,8 @@ import { BalanceProvider } from '@/providers/BalanceProvider';
 import ConditionalLayout from '@/components/layout/ConditionalLayout'; // Import the new conditional layout
 
 export const metadata: Metadata = {
-  title: 'Synapse Yield - MetaMask Smart Accounts',
-  description:
-    'Automated DeFi yield optimization secured by MetaMask Delegation Toolkit on Monad Network',
+  title: 'Synapse Yield | Automated DeFi Yield on Monad',
+  description: 'Optimize DeFi yields on Monad Testnet using Account Abstraction and secure MetaMask Delegation. Manage staking with automated rebalancing.',
 };
 
 export default function RootLayout({

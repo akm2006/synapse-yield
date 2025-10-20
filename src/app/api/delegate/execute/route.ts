@@ -5,7 +5,7 @@ import dbConnect from '@/lib/db';
 import User from '@/models/User';
 import type { Address } from 'viem';
 import { executeDelegatedOperation } from '@/lib/execution';
-
+import { toJSONSafe } from '@/lib/json';
 export async function POST(request: NextRequest) {
   const res = new NextResponse();
   const session = await getIronSession<SessionData>(request, res, sessionOptions);
@@ -44,18 +44,17 @@ export async function POST(request: NextRequest) {
       userAddress as Address // Pass the correct Smart Account address
     );
 
-    return NextResponse.json(result);
-    
+return NextResponse.json(toJSONSafe(result));    
   } catch (error: any) {
     console.error('Failed to execute operation:', error);
-    return NextResponse.json(
-      {
+ return NextResponse.json(
+      toJSONSafe({ // Apply here as well for safety
         success: false,
         error: error?.message || 'Failed to execute operation',
         operations: [],
         approvalsSent: 0,
         mainCallsSent: 0,
-      },
+      }),
       { status: 500 }
     );
   }

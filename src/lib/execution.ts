@@ -584,20 +584,20 @@ export async function executeDelegatedOperation(
 
   const opResults: ExecutionResult["operations"] = [];
 
-  // --- ADD DIAGNOSTIC LOGGING BEFORE SENDING OPS -------------------------
-  try {
-    createDiagnosticLog(
-      'NEW_LIBRARY',
-      body,
-      userAddress,
-      parsedDelegation,
-      approvalCalls,
-      mainExecutions
-    );
-  } catch (e) {
-    console.warn('Failed to create diagnostic log', e);
-  }
-  // ----------------------------------------------------------------------
+  // // --- ADD DIAGNOSTIC LOGGING BEFORE SENDING OPS -------------------------
+  // try {
+  //   createDiagnosticLog(
+  //     'NEW_LIBRARY',
+  //     body,
+  //     userAddress,
+  //     parsedDelegation,
+  //     approvalCalls,
+  //     mainExecutions
+  //   );
+  // } catch (e) {
+  //   console.warn('Failed to create diagnostic log', e);
+  // }
+  // // ----------------------------------------------------------------------
 
   for (const appr of approvalCalls) {
     console.log(`Sending approval to ${appr.target}`);

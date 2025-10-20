@@ -77,7 +77,7 @@ export default function DelegationManager({
     addLog("[ACTION] Creating delegation signature...");
 
     try {
-      const { createStakingDelegation } = await import("@/utils/delegation");
+      const { createStakingDelegation } = await import("@/lib/delegation");
       addLog("[INFO] Preparing delegation for staking operations...");
       const delegation = createStakingDelegation(smartAccount, delegateAddress);
 

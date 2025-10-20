@@ -4,7 +4,7 @@
 import { useState,  useMemo } from 'react';
 import type { Address } from 'viem';
 import { useBalances } from '@/providers/BalanceProvider';
-import { determineRebalanceAction } from '@/utils/yieldOptimizer';
+import { determineRebalanceAction } from '@/lib/yieldOptimizer';
 import { CONTRACTS } from '@/lib/contracts';
 import { useToasts } from '@/providers/ToastProvider';
 import { useLogger } from '@/providers/LoggerProvider';
