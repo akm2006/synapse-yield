@@ -147,8 +147,10 @@ const CustomSelect = ({ value, onChange, options, placeholder }: { value: string
       <div className="relative">
         <Listbox.Button className="relative w-full cursor-default rounded-md bg-gray-800 py-2 pl-3 pr-10 text-left border border-gray-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 transition">
           <span className="flex items-center gap-2 truncate">
-            {selectedOption?.logoName && <Logo name={selectedOption.logoName} size="sm" />}
-            {selectedOption?.icon && <selectedOption.icon className="w-4 h-4 text-gray-400" />}
+            {selectedOption?.logoName && <Logo name={selectedOption.logoName} size="sm" />}{selectedOption?.icon && (() => {
+  const Icon = selectedOption.icon as React.ComponentType<{ className?: string }>;
+  return <Icon className="w-4 h-4 text-gray-400" />;
+})()}
             <span className="text-white">{selectedOption ? selectedOption.label : placeholder}</span>
           </span>
           <span className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2">
@@ -172,8 +174,10 @@ const CustomSelect = ({ value, onChange, options, placeholder }: { value: string
                   <>
                     <span className={`flex items-center gap-2 truncate ${selected ? 'font-medium' : 'font-normal'}`}>
                       {option.logoName && <Logo name={option.logoName} size="sm" />}
-                      {option.icon && <option.icon className="w-4 h-4 text-gray-400" />}
-                      {option.label}
+{option.icon && (() => {
+  const Icon = option.icon as React.ComponentType<{ className?: string }>;
+  return <Icon className="w-4 h-4 text-gray-400" />;
+})()}                      {option.label}
                     </span>
                     {selected ? (
                       <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-blue-400">
