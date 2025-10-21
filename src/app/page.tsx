@@ -7,8 +7,6 @@ import {
   Float,
   PerspectiveCamera,
   Environment,
-  Sphere,
-  MeshDistortMaterial,
   Sparkles,
   Stars,
 } from "@react-three/drei";
@@ -16,7 +14,7 @@ import { Suspense, useRef, useEffect, useMemo, memo } from "react";
 import * as THREE from "three";
 import Header from "@/components/Header";
 import { Timeline, TimelineEntry } from "@/components/ui/timeline";
-
+import { FeatureCard, AnimatedContainer } from "@/components/ui/GridFeatureCards";
 import {
   ChevronRightIcon,
   BoltIcon,
@@ -25,7 +23,6 @@ import {
   ArrowsRightLeftIcon,
   ListBulletIcon,
   CpuChipIcon,
-  MagnifyingGlassIcon,
   BeakerIcon,
   LinkIcon,
   RocketLaunchIcon,
@@ -213,148 +210,56 @@ const Hero3DScene = memo(function Hero3DScene() {
 });
 
 
-// Security Shield 3D
-const SecurityShield3D = memo(function SecurityShield3D() {
-  const texture = useMemo(() => {
-    try {
-      return new THREE.TextureLoader().load("/shield.png");
-    } catch {
-      return new THREE.Texture();
-    }
-  }, []);
 
+const Padlock3D = memo(function Padlock3D() {
+  const { scene } = useGLTF("/models/3Dpadlock.glb");
+  const copiedScene = useMemo(() => scene.clone(), [scene]);
+  const modelRef = useRef<THREE.Group>(null);
+
+  const initialRotation: [number, number, number] = [-0.3, 0.8, 0];
+  useFrame((state, delta) => {
+  if (modelRef.current) {
+    const { x, y } = state.mouse;
+
+    // Very subtle auto-rotation
+    const autoRotationSpeed = 0.3;
+    
+    // Calculate target rotation based on initial rotation + mouse offset + auto-rotation
+    const targetRotationY = initialRotation[1] + x * 0.3 + (state.clock.elapsedTime * autoRotationSpeed);
+    const targetRotationX = initialRotation[0] - y * 0.3;
+
+    // Smoothly interpolate towards the target rotation
+    modelRef.current.rotation.y = THREE.MathUtils.lerp(
+      modelRef.current.rotation.y,
+      targetRotationY,
+      0.02
+    );
+    modelRef.current.rotation.x = THREE.MathUtils.lerp(
+      modelRef.current.rotation.x,
+      targetRotationX,
+      0.05
+    );
+  }
+});
   return (
     <>
       <PerspectiveCamera makeDefault position={[0, 0, 5]} />
-      <ambientLight intensity={0.5} />
-      <directionalLight position={[10, 10, 5]} intensity={1} />
-      <pointLight position={[-10, -10, -5]} intensity={0.5} color="#a855f7" />
+      <ambientLight intensity={1.0} />
+      <pointLight position={[10, 10, 10]} intensity={200} />
+      <pointLight position={[-10, -5, -10]} color="#a855f7" intensity={50} />
 
-      <Float speed={1.5} rotationIntensity={0.3} floatIntensity={0.3}>
-        <mesh>
-          <planeGeometry args={[5, 5]} />
-          <meshStandardMaterial
-            map={texture}
-            transparent
-            side={THREE.DoubleSide}
-            color="#ffffff"
-            emissive="#a855f7"
-            emissiveIntensity={0.3}
-          />
-        </mesh>
-      </Float>
-
-      <Sparkles count={50} scale={8} size={3} speed={0.2} color="#a855f7" />
+      <primitive
+        ref={modelRef}
+        object={copiedScene}
+        scale={1.5}
+        position={[0, 0, 0]}
+        rotation={initialRotation}
+      />
       <Environment preset="sunset" />
     </>
   );
 });
-
-// Technology Network 3D
-const TechnologyNetwork3D = memo(function TechnologyNetwork3D() {
-  const groupRef = useRef<THREE.Group>(null);
-
-  const metaMaskTexture = useMemo(() => {
-    try {
-      return new THREE.TextureLoader().load("/metamask-logo.png");
-    } catch {
-      return new THREE.Texture();
-    }
-  }, []);
-
-  const protocols = useMemo(
-    () => [
-      { name: "Pimlico", image: "/images/pimlico-logo.png", color: "#06b6d4" },
-      { name: "Envio", image: "/images/envio-logo.png", color: "#14b8a6" },
-      { name: "Monad", image: "/monad-logo.png", color: "#a855f7" },
-      { name: "ERC4337", image: "/images/erc4337-logo.png", color: "#0ea5e9" },
-    ],
-    []
-  );
-
-  return (
-    <>
-      <PerspectiveCamera makeDefault position={[0, 0, 8]} />
-      <ambientLight intensity={0.3} />
-      <directionalLight position={[10, 10, 5]} intensity={0.8} />
-
-      <group ref={groupRef}>
-        {protocols.map((protocol, i) => {
-          const angle = (i / protocols.length) * Math.PI * 2;
-          const radius = 2.5;
-          const x = Math.cos(angle) * radius;
-          const y = Math.sin(angle) * radius;
-
-          const texture = useMemo(() => {
-            try {
-              return new THREE.TextureLoader().load(protocol.image);
-            } catch {
-              return new THREE.Texture();
-            }
-          }, [protocol.image]);
-
-          return (
-            <Float key={i} speed={1 + i * 0.2} rotationIntensity={0.2}>
-              <group position={[x, y, 0]}>
-                <Sphere args={[0.4, 16, 16]}>
-                  <meshStandardMaterial
-                    color={protocol.color}
-                    metalness={0.8}
-                    roughness={0.2}
-                    emissive={protocol.color}
-                    emissiveIntensity={0.5}
-                    transparent
-                    opacity={0.3}
-                  />
-                </Sphere>
-                <mesh position={[0, 0, 0.1]}>
-                  <planeGeometry args={[0.6, 0.6]} />
-                  <meshStandardMaterial
-                    map={texture}
-                    color="#ffffff"
-                    transparent
-                    side={THREE.DoubleSide}
-                    emissive={protocol.color}
-                    emissiveIntensity={0.2}
-                  />
-                </mesh>
-              </group>
-            </Float>
-          );
-        })}
-
-        <Float speed={1.5} rotationIntensity={0.5}>
-          <group position={[0, 0, 0]}>
-            <Sphere args={[0.5, 32, 32]}>
-              <MeshDistortMaterial
-                color="#0ea5e9"
-                attach="material"
-                distort={0.3}
-                speed={2}
-                roughness={0.1}
-                metalness={0.9}
-              />
-            </Sphere>
-            <mesh position={[0, 0, 0.6]}>
-              <planeGeometry args={[0.8, 0.8]} />
-              <meshStandardMaterial
-                map={metaMaskTexture}
-                color="#ffffff"
-                transparent
-                side={THREE.DoubleSide}
-                emissive="#0ea5e9"
-                emissiveIntensity={0.3}
-              />
-            </mesh>
-          </group>
-        </Float>
-      </group>
-
-      <Sparkles count={80} scale={12} size={2} speed={0.3} color="#06b6d4" />
-      <Environment preset="warehouse" />
-    </>
-  );
-});
+useGLTF.preload("/models/3Dpadlock.glb");
 
 // --- Data Arrays ---
 const features = [
@@ -414,38 +319,63 @@ const features = [
     imageUrl: "/images/feature-activity.png", // Existing analytics image
   },
 ];
-
 const technologies = [
-  {
-    icon: "/images/erc4337-logo.png",
-    title: "ERC-4337 Account Abstraction",
-    description:
-      "Smart contract accounts via permissionless.js enable transaction batching, gas sponsorship, and enhanced UX patterns.",
-    badge: "Core Infrastructure",
-  },
   {
     icon: "/images/tech-metamask.png",
     title: "MetaMask Delegation",
-    description:
-      "Secure, scoped permission system for automated operations without compromising wallet security or custody.",
+    description: "Utilizes the Delegation Toolkit for secure, non-custodial automation, enabling scoped permissions without exposing private keys.",
     badge: "Security Layer",
   },
   {
-    icon: "/images/pimlico-logo.png",
-    title: "Pimlico Infrastructure",
-    description:
-      "Enterprise-grade bundler and paymaster infrastructure for reliable UserOperation execution on Monad Testnet.",
-    badge: "Transaction Processing",
+    icon: "/images/tech/erc4337.png",
+    title: "Account Abstraction",
+    description: "Built on ERC-4337 Smart Accounts, orchestrated with permissionless.js for transaction batching and enhanced UX.",
+    badge: "Core Standard",
   },
   {
-    icon: "/images/envio-logo.png",
-    title: "Envio Indexer",
-    description:
-      "High-performance blockchain indexing for real-time event monitoring across Kintsu, Magma, and DEX protocols.",
-    badge: "Data Layer",
+    icon: "/images/tech/pimlico.png",
+    title: "Pimlico",
+    description: "Leverages Pimlico's enterprise-grade Bundler and Paymaster for reliable UserOperation execution on the Monad Testnet.",
+    badge: "AA Infrastructure",
+  },
+  {
+    icon: "/images/tech/next.png",
+    title: "Next.js",
+    description: "A modern, performant frontend built with the Next.js App Router, serverless functions, and TypeScript for a seamless user experience.",
+    badge: "Full-Stack Framework",
+  },
+  {
+    icon: "/images/tech/wagmi.png",
+    title: "Wagmi & Viem",
+    description: "Provides robust, type-safe React hooks and low-level utilities for all blockchain interactions, ensuring stability and reliability.",
+    badge: "Web3 Interaction",
+  },
+  {
+    icon: "/images/tech/siwe.png",
+    title: "SIWE & Iron Session",
+    description: "Implements secure, server-side authentication using Sign-In With Ethereum (SIWE) and encrypted session management with Iron Session.",
+    badge: "Authentication",
+  },
+  {
+    icon: "/images/tech/mongodb.png",
+    title: "MongoDB",
+    description: "Stores user data, including delegation details and automation preferences, using Mongoose for structured and scalable data management.",
+    badge: "Database",
+  },
+  {
+    icon: "/images/tech/envio.png",
+    title: "Envio",
+    description: "Provides high-performance, real-time data indexing from the blockchain via a custom GraphQL API for the live activity feed.",
+    badge: "Data Indexing",
+  },
+  {
+    icon: "/images/tech/fastcron.png",
+    title: "FastCron",
+    description: "Reliably triggers the serverless keeper function on a schedule to perform automated portfolio rebalancing for opted-in users.",
+    badge: "Automation",
   },
 ];
-
+// ---
 // --- UPDATED WORKFLOW DATA for the new Timeline component ---
 const workflowData: TimelineEntry[] = [
   {
@@ -482,67 +412,66 @@ const workflowData: TimelineEntry[] = [
   },
 ];
 
+// --- UPDATED Security Pillars ---
 const securityPillars = [
   {
-    title: "Non-Custodial Architecture",
-    description:
-      "Assets remain exclusively in your smart account, controlled by your personal wallet at all times.",
+    title: "Non-Custodial Asset Control",
+    description: "Your assets never leave your Smart Account. You retain 100% ownership and control via your personal MetaMask wallet.",
   },
   {
-    title: "Granular Permissions",
-    description:
-      "MetaMask Delegation enforces strict function-level access control for automated operations.",
+    title: "Zero Private Key Exposure",
+    description: "Your private key never leaves your wallet. All interactions, including login and delegation, are authorized using secure cryptographic signatures.",
   },
   {
-    title: "Zero Key Exposure",
-    description:
-      "Private keys never leave your wallet. All authorizations use cryptographic message signing.",
+    title: "Scoped & Granular Delegation",
+    description: "Using MetaMask Delegation, you grant limited, specific permissions to our automated keeper (e.g., 'approve' or 'stake'), never full account access.",
   },
   {
-    title: "Secure Delegation Storage",
-    description:
-      "Delegate keys managed using industry-standard encryption and secure backend infrastructure.",
+    title: "Secure Authentication (SIWE)",
+    description: "We use Sign-In With Ethereum (SIWE) for wallet-based login, ensuring that only you can access your account data and settings.",
   },
   {
-    title: "SIWE Authentication",
-    description:
-      "Sign-In With Ethereum ensures wallet-based access control for account management.",
+    title: "Encrypted Session Management",
+    description: "All user sessions are encrypted and managed server-side using Iron Session, protecting your session from hijacking and unauthorized access.",
   },
 ];
+// ---
 
+// --- UPDATED Comparison Data ---
 const comparisonData = [
-  {
-    feature: "Network Environment",
-    testnet: "Monad Testnet",
-    mainnet: "Monad Mainnet",
-  },
-  {
-    feature: "APY Data Source",
-    testnet: "Simulated placeholder values",
-    mainnet: "Live on-chain data & oracle feeds",
-  },
-  {
-    feature: "Rebalancing Logic",
-    testnet: "Basic ratio-based strategy",
-    mainnet: "Advanced APY-aware optimization",
-  },
-  {
-    feature: "Transaction Model",
-    testnet: "Sequential UserOperations",
-    mainnet: "Atomic multi-call batching",
-  },
-  {
-    feature: "Gas Strategy",
-    testnet: "Pimlico sponsorship",
-    mainnet: "User-paid with advanced paymasters",
-  },
-  {
-    feature: "Security Posture",
-    testnet: "Development-grade keys",
-    mainnet: "Audited contracts & production security",
-  },
+    {
+      feature: "Protocol Scope",
+      testnet: "Limited to Kintsu & Magma for demonstration",
+      mainnet: "Extensible to all high-yield protocols on the network",
+    },
+    {
+      feature: "APY Data Source",
+      testnet: "Simulated values for demonstration purposes",
+      mainnet: "Live on-chain data from protocols & oracles",
+    },
+    {
+      feature: "Rebalancing Strategy",
+      testnet: "Basic 50/50 portfolio ratio balancing",
+      mainnet: "Advanced, dynamic rebalancing based on live APY & gas costs",
+    },
+    {
+      feature: "Transaction Model",
+      testnet: "Sequential UserOperations (one per action)",
+      mainnet: "Atomic batching (e.g., approve + stake in one UserOp)",
+    },
+    {
+      feature: "Gas Fee Management",
+      testnet: "Sponsored via Pimlico's Testnet Paymaster",
+      mainnet: "User-funded with advanced gas optimization strategies",
+    },
+  
+    {
+      feature: "Automation Trigger",
+      testnet: "Centralized Vercel Cron Job",
+      mainnet: "Decentralized keeper networks (e.g., Chainlink Automation)",
+    },
 ];
-
+// ---
 export default function LandingPage() {
   const { scrollYProgress } = useScroll();
   const opacity = useTransform(scrollYProgress, [0, 0.2], [1, 0]);
@@ -663,7 +592,7 @@ export default function LandingPage() {
                 className="mx-auto mb-10 max-w-2xl text-lg leading-relaxed text-gray-400 sm:text-xl"
               >
                 Synapse Yield leverages Account Abstraction and MetaMask
-                Delegation to automate yield strategies across Kintsu and Magma
+                Delegation to automate yield optimization across DeFi protocols
                 with institutional-grade security.
               </motion.p>
 
@@ -806,9 +735,7 @@ export default function LandingPage() {
                   <li className="flex items-start gap-3">
                     <CheckCircleIcon className="h-6 w-6 text-green-500/80 mt-1 flex-shrink-0" />
                     <span>
-                      <b>Simplified UX (AA):</b> Smart Accounts enable
-                      **one-click** actions, transaction batching, and potential
-                      **gas savings** through paymaster integration.
+                      <b>Simplified UX (AA):</b> Smart Accounts enable <b>one-click</b> actions, transaction batching, and potential <b>gas savings</b> through paymaster integration.
                     </span>
                   </li>
                 </ul>
@@ -908,124 +835,78 @@ export default function LandingPage() {
         </section>
         {/* --- End Workflow Section --- */}
 
-        {/* --- Technology Stack with 3D Network --- */}
+         {/* --- Technology Stack with new Grid Component --- */}
         <section className="relative px-4 py-20 md:py-28">
-          {/* 3D Network Background */}
-          <div className="absolute inset-0 -z-10 opacity-30">
-            <Canvas
-              className="h-full w-full"
-              gl={{ alpha: true, antialias: true }}
-              dpr={[1, 1.5]}
-            >
-              <Suspense fallback={null}>
-                <TechnologyNetwork3D />
-              </Suspense>
-            </Canvas>
-          </div>
+            <div className="absolute inset-0 -z-10 opacity-30">
+              
+            </div>
+            <div className="mx-auto w-full max-w-7xl space-y-8 px-4">
+				<AnimatedContainer className="mx-auto max-w-3xl text-center">
+					<h2 className="mb-4 text-3xl font-bold tracking-tight text-white sm:text-4xl lg:text-5xl">
+						Technology Stack
+					</h2>
+					<p className="text-gray-400 mt-4 text-lg text-balance">
+						Built on a foundation of cutting-edge, secure, and scalable technologies.
+					</p>
+				</AnimatedContainer>
 
-          <div className="mx-auto max-w-7xl">
-            <motion.div {...fadeInUp} className="mb-16 text-center">
-              <h2 className="mb-4 text-3xl font-bold text-white sm:text-4xl lg:text-5xl">
-                Technology Stack
-              </h2>
-              <p className="mx-auto max-w-2xl text-lg text-gray-400">
-                Built on cutting-edge blockchain infrastructure
-              </p>
-            </motion.div>
-
-            <motion.div
-              variants={staggerContainer}
-              initial="initial"
-              whileInView="whileInView"
-              className="grid gap-6 md:grid-cols-2"
-            >
-              {technologies.map((tech, index) => (
-                <motion.div
-                  key={index}
-                  variants={fadeInUp}
-                  className="group relative overflow-hidden rounded-2xl border border-white/5 bg-white/[0.02] p-8 backdrop-blur-md transition-all hover:border-white/10 hover:bg-white/[0.04] hover:scale-105"
-                >
-                  <div className="mb-6 flex items-start justify-between">
-                    <div className="relative h-14 w-14 flex-shrink-0 rounded-xl bg-gradient-to-br from-blue-500/10 to-cyan-500/10">
-                      <Image
-                        src={tech.icon || "/placeholder.svg"}
-                        alt={`${tech.title} icon`}
-                        fill
-                        className="rounded-xl object-contain p-2"
-                      />
-                    </div>
-                    <span className="rounded-full border border-cyan-500/20 bg-cyan-500/10 px-3 py-1 text-xs font-medium text-cyan-300">
-                      {tech.badge}
-                    </span>
-                  </div>
-                  <h3 className="mb-3 text-xl font-semibold text-white">
-                    {tech.title}
-                  </h3>
-                  <p className="text-sm leading-relaxed text-gray-400">
-                    {tech.description}
-                  </p>
-                </motion.div>
-              ))}
-            </motion.div>
-          </div>
+				<AnimatedContainer
+					delay={0.2}
+					className="grid grid-cols-1 divide-x divide-y divide-dashed divide-slate-800 border border-dashed border-slate-800 sm:grid-cols-2 lg:grid-cols-3"
+				>
+					{technologies.map((feature, i) => (
+						<FeatureCard key={i} feature={feature} />
+					))}
+				</AnimatedContainer>
+			</div>
         </section>
+        {/* --- End Technology Stack --- */}
 
-        {/* --- Security with 3D Shield --- */}
+       
+        {/* --- Security Section with Padlock 3D Model --- */}
         <section className="relative px-4 py-20 md:py-28">
-          <div className="mx-auto max-w-6xl">
+          <div className="mx-auto max-w-7xl">
             <motion.div {...fadeInUp} className="mb-16 text-center">
               <span className="mb-4 inline-block text-sm font-semibold uppercase tracking-wider text-purple-400">
                 Security First
               </span>
-              <h2 className="mb-6 text-3xl font-bold text-white sm:text-4xl lg:text-5xl">
-                Non-Custodial by Design
-              </h2>
-              <p className="mx-auto max-w-2xl text-lg text-gray-400">
-                Multi-layered security architecture ensures complete asset
-                control
+              <h2 className="mb-6 text-3xl font-bold text-white sm:text-4xl lg:text-5xl">Non-Custodial by Design</h2>
+              <p className="mx-auto max-w-3xl text-lg text-gray-400">
+                Our multi-layered security architecture is built on battle-tested, decentralized principles to ensure you always have complete control over your assets.
               </p>
             </motion.div>
 
+            {/* Reverted to 2-column grid structure */}
             <motion.div
               variants={staggerContainer}
               initial="initial"
               whileInView="whileInView"
-              className="grid gap-8 md:grid-cols-2 lg:gap-12"
+              className="grid grid-cols-1 gap-12 md:grid-cols-2 md:gap-16 lg:gap-24 items-center"
             >
-              {/* 3D Shield */}
-              <motion.div
-                variants={fadeInUp}
-                className="flex items-center justify-center"
-              >
-                <div className="relative h-96 w-full">
-                  <Canvas
-                    className="h-full w-full"
-                    gl={{ alpha: true, antialias: true }}
-                    dpr={[1, 2]}
-                  >
-                    <Suspense fallback={null}>
-                      <SecurityShield3D />
-                    </Suspense>
-                  </Canvas>
+              {/* Left Column: 3D Visual */}
+              <motion.div variants={fadeInUp} className="flex items-center justify-center h-96 lg:h-full">
+                <div className="relative h-full w-full max-w-md rounded-full bg-gradient-to-b from-purple-500/10 to-transparent p-4 [mask-image:radial-gradient(ellipse_at_center,black_40%,transparent_80%)]">
+                    <Canvas className="h-full w-full" gl={{ alpha: true, antialias: true }} dpr={[1, 2]}>
+                        <Suspense fallback={null}>
+                    
+                            <Padlock3D />
+                        </Suspense>
+                    </Canvas>
                 </div>
               </motion.div>
 
-              {/* Security Pillars */}
+              {/* Right Column: Security Pillars */}
               <motion.div variants={staggerContainer} className="space-y-6">
                 {securityPillars.map((pillar, index) => (
                   <motion.div
                     key={index}
                     variants={fadeInUp}
-                    className="flex gap-4 rounded-xl border border-white/5 bg-white/[0.02] p-6 backdrop-blur-md transition-all hover:border-white/10 hover:bg-white/[0.04]"
+                    className="flex gap-4 rounded-xl border border-white/5 bg-slate-900/40 p-6 backdrop-blur-md transition-all duration-300 hover:border-white/10 hover:bg-slate-900/60"
                   >
-                    <CheckCircleIcon className="h-6 w-6 flex-shrink-0 text-emerald-400" />
+                    <ShieldCheckIcon className="h-8 w-8 flex-shrink-0 text-emerald-400 mt-1" />
                     <div>
-                      <h4 className="mb-2 font-semibold text-white">
-                        {pillar.title}
-                      </h4>
-                      <p className="text-sm leading-relaxed text-gray-400">
-                        {pillar.description}
-                      </p>
+                      <h4 className="mb-2 font-semibold text-white">{pillar.title}</h4>
+                      <p className="text-sm leading-relaxed text-gray-400">{pillar.description}</p>
                     </div>
                   </motion.div>
                 ))}
@@ -1034,9 +915,10 @@ export default function LandingPage() {
           </div>
         </section>
 
+        
         {/* --- Testnet vs Mainnet --- */}
         <section className="px-4 py-20 md:py-28">
-          <div className="mx-auto max-w-6xl">
+          <div className="mx-auto max-w-7xl">
             <motion.div {...fadeInUp} className="mb-16 text-center">
               <span className="mb-4 inline-block text-sm font-semibold uppercase tracking-wider text-amber-400">
                 Development Roadmap
@@ -1045,56 +927,45 @@ export default function LandingPage() {
                 Testnet to Mainnet Evolution
               </h2>
               <p className="mx-auto max-w-2xl text-lg text-gray-400">
-                Currently active on Monad Testnet with a clear path to
-                production
+                Currently demonstrating core concepts on the Monad Testnet with a clear path to production-grade functionality.
               </p>
             </motion.div>
 
+            {/* New Grid Layout for Comparison */}
             <motion.div
-              variants={fadeInUp}
-              className="overflow-hidden rounded-2xl border border-white/5 bg-white/[0.02] backdrop-blur-md"
+              variants={staggerContainer}
+              initial="initial"
+              whileInView="whileInView"
+              className="grid grid-cols-1 gap-8 lg:grid-cols-2"
             >
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead>
-                    <tr className="border-b border-white/10 bg-white/[0.02]">
-                      <th className="px-6 py-4 text-left text-sm font-semibold text-gray-400">
-                        Feature
-                      </th>
-                      <th className="px-6 py-4 text-left text-sm font-semibold text-amber-400">
-                        <div className="flex items-center gap-2">
-                          <BeakerIcon className="h-5 w-5" />
-                          Testnet
-                        </div>
-                      </th>
-                      <th className="px-6 py-4 text-left text-sm font-semibold text-emerald-400">
-                        <div className="flex items-center gap-2">
-                          <RocketLaunchIcon className="h-5 w-5" />
-                          Mainnet
-                        </div>
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {comparisonData.map((row, index) => (
-                      <tr
-                        key={index}
-                        className="border-b border-white/5 transition-colors hover:bg-white/[0.02]"
-                      >
-                        <td className="px-6 py-4 font-medium text-white">
-                          {row.feature}
-                        </td>
-                        <td className="px-6 py-4 text-sm text-gray-400">
-                          {row.testnet}
-                        </td>
-                        <td className="px-6 py-4 text-sm text-gray-400">
-                          {row.mainnet}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              {comparisonData.map((row, index) => (
+                <motion.div
+                  key={index}
+                  variants={fadeInUp}
+                  className="group relative overflow-hidden rounded-2xl border border-white/5 bg-slate-900/40 p-6 backdrop-blur-md transition-all duration-300 hover:border-white/10 hover:bg-slate-900/60"
+                >
+                  <h3 className="text-xl font-semibold text-white mb-6 border-b border-white/10 pb-4">{row.feature}</h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                    {/* Testnet Column */}
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2 text-sm font-semibold text-amber-400">
+                        <BeakerIcon className="h-5 w-5" />
+                        Testnet
+                      </div>
+                      <p className="text-sm text-gray-400 leading-relaxed">{row.testnet}</p>
+                    </div>
+
+                    {/* Mainnet Column */}
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2 text-sm font-semibold text-emerald-400">
+                        <RocketLaunchIcon className="h-5 w-5" />
+                        Mainnet
+                      </div>
+                      <p className="text-sm text-gray-400 leading-relaxed">{row.mainnet}</p>
+                    </div>
+                  </div>
+                </motion.div>
+              ))}
             </motion.div>
           </div>
         </section>
@@ -1167,8 +1038,7 @@ export default function LandingPage() {
             </div>
             <div className="space-y-2 text-center text-xs text-gray-500">
               <p>
-                &copy; {new Date().getFullYear()} Synapse Yield. All rights
-                reserved.
+                &copy; {new Date().getFullYear()} Synapse Yield
               </p>
             </div>
           </div>
