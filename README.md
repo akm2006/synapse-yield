@@ -1,130 +1,123 @@
-
 <p align="center">
   <img src="./public/logo.png" alt="Synapse Yield Logo" width="140" />
 </p>
 
-<h1 align="center"> Synapse Yield</h1>
+<h1 align="center">Synapse Yield</h1>
 
 <p align="center">
   <strong>Maximize Your DeFi Yield on Monad with Automated Optimization & Enhanced Security</strong><br>
-  <em>Built on the Monad Testnet using Account Abstraction (AA) and MetaMask Delegation Toolkit</em>
-</p>
-
-<p align="center">
-  <a href="https://nextjs.org/"><img src="https://img.shields.io/badge/Next.js-000000?logo=nextdotjs&logoColor=white" /></a>
-  <a href="https://www.typescriptlang.org/"><img src="https://img.shields.io/badge/TypeScript-3178C6?logo=typescript&logoColor=white" /></a>
-  <a href="https://react.dev/"><img src="https://img.shields.io/badge/React-61DAFB?logo=react&logoColor=black" /></a>
-  <a href="https://tailwindcss.com/"><img src="https://img.shields.io/badge/TailwindCSS-38B2AC?logo=tailwindcss&logoColor=white" /></a>
-  <a href="https://pimlico.io/"><img src="https://img.shields.io/badge/Pimlico-9146FF?logo=ethereum&logoColor=white" /></a>
-  <a href="https://metamask.io/"><img src="https://img.shields.io/badge/MetaMask-F6851B?logo=metamask&logoColor=white" /></a>
-  <a href="https://monad.xyz/"><img src="https://img.shields.io/badge/Monad%20Testnet-4B0082?logo=polygon&logoColor=white" /></a>
-  <a href="https://vercel.com/"><img src="https://img.shields.io/badge/Deployed%20on-Vercel-black?logo=vercel&logoColor=white" /></a>
+  <em>Built on the Monad Testnet using Account Abstraction (ERC-4337) and MetaMask Delegations.</em>
 </p>
 
 ---
 
-## 🧭 Overview
-
-Synapse Yield is a decentralized application on the **Monad Testnet** that automates DeFi yield optimization using **Account Abstraction (AA)** and the **MetaMask Delegation Toolkit**.  
-It lets users **stake, swap, and rebalance** across integrated protocols like **Kintsu** and **Magma**, either manually or automatically via a **keeper service**.
-
-> 🔗 **Live Demo:** [Synapse-Yield](https://synapse-yield.vercel.app/)
-
----
-
-## ✨ Key Features
-
-- **Smart Account Management** — Create and manage a dedicated MetaMask Smart Account for all DeFi activity.
-- **🛡️ Secure Delegation (Non-Custodial)** — Scoped permissions for backend automation without exposing private keys.
-- **Staking & Unstaking** — Interact with **Kintsu (sMON)** and **Magma (gMON)** seamlessly via delegated transactions.
-- **🔄 Token Swapping** — Swap between MON-family tokens using **PancakeSwap Universal Router**.
-- **🤖 Automated Yield Optimization (Keeper)** — Vercel Cron-driven rebalancing towards high-APY protocols.
-- **💸 Fund Management** — Deposit/withdraw MON-family tokens from Smart Accounts via **gas-sponsored** transactions.
-- **📊 Activity Feed** — View live protocol activity (staking, swaps, rebalances) using **Envio Indexer**.
-- **🔒 SIWE Authentication** — Secure sign-in with Ethereum, backed by server-managed sessions.
-- **🎨 Polished UI/UX** — “Liquid Synapse” theme built with **Next.js**, **Tailwind**, and **Framer Motion**.
+## 📚 Table of Contents
+- [Overview](#overview)
+- [🎬 Video Demos](#-video-demos)
+- [Architecture Overview](#architecture-overview)
+- [🔗 Smart Contract Architecture](#-smart-contract-architecture)
+- [Setup](#setup)
+- [Environment Variables](#environment-variables)
+- [Testnet → Mainnet Migration Guide](#-testnet--mainnet-migration-guide)
+- [License](#license)
 
 ---
 
-## 🛡️ Security Features & Delegation Scope
+## Overview
 
-**Security Highlights:**
+**Synapse Yield** is a decentralized yield optimizer designed for the **Monad Testnet**.  
+It automates yield rebalancing between protocols like **Kintsu** and **Magma** to maximize user returns — powered by **MetaMask Smart Accounts** and **Delegation Toolkit**.
 
-- ✅ **Non-Custodial:** Assets remain in user-controlled Smart Accounts.
-- ✅ **Scoped Delegation:** Limits backend access to specific contracts & functions.
-- ✅ **No Key Sharing:** Only signed authorizations are used—private keys never exposed.
-- ✅ **Secure Storage:** Delegate key & session secrets stored server-side (never client-exposed).
-
-**Delegation Scope (`createStakingDelegation`):**
-- **Targets:** Kintsu, Magma, WMON, gMON, Permit2, PancakeSwap Router  
-- **Allowed Functions:**  
-  - `depositMon`, `withdrawMon`, `deposit`, `requestUnlock`, `redeem`  
-  - ERC20 actions (`approve`, `transfer`, `transferFrom`)  
-  - Permit2 approvals, `execute` (PancakeSwap), `deposit/withdraw` (WMON)
-- **Allows:** Delegated staking/swapping under user consent  
-- **Prevents:** Unauthorized transfers, calls outside scope
+Users maintain **full custody** of their assets while delegating yield optimization tasks to the backend “keeper,” executed through **scoped delegations** and **UserOperations** (ERC-4337).
 
 ---
 
-## 🛠️ Technology Stack
+## 🎬 Video Demos
 
-| Layer | Technologies |
-|-------|---------------|
-| **Frontend** | Next.js (App Router), React, TypeScript, Tailwind CSS, Framer Motion |
-| **Blockchain** | Wagmi, Viem, RainbowKit |
-| **AA & Delegation** | Permissionless.js, Pimlico, MetaMask Delegation Toolkit |
-| **Backend** | Next.js API Routes, MongoDB, Mongoose |
-| **Automation** | Node.js (Keeper Script), Vercel Cron Jobs |
-| **Indexing & Data** | Envio, Apollo Client |
-| **Authentication** | SIWE + Iron Session |
+### Demo Video & Pitch Video
+ 
+| Watch the complete walkthrough demonstrating all features:| See the problem, solution, and live proof |
+|----------------|--------------------------------|
+| [![Demo Video](https://img.youtube.com/vi/LlatPV-aHzg/0.jpg)](https://www.youtube.com/watch?v=LlatPV-aHzg) | [![Pitch Video](https://img.youtube.com/vi/vG_VcmyNACw/0.jpg)](https://www.youtube.com/watch?v=vG_VcmyNACw) |
 
----
-
-## ⚙️ Core Workflow
-
-1. **Connect & Sign In:** User connects wallet and signs with SIWE.
-2. **Smart Account Setup:** Derived MetaMask Smart Account via deterministic salt.
-3. **Delegation:** User signs EIP-712 `Delegation` defining contract/function access.
-4. **Action Execution:** Backend validates & constructs `UserOperations` → signed with delegate key → submitted to **Pimlico Bundler**.
-5. **Transaction Execution:** Bundler sends transactions to Monad EntryPoint.
-6. **Keeper Automation:** Scheduled rebalancing and yield optimization for opted-in users.
+### Hackathon Submission
+- [HackQuest Project Page](https://www.hackquest.io/projects/MetaMask-Smart-Accounts-x-Monad-Dev-Cook-Off-Synapse-Yield)
 
 ---
 
-## 🗺️ App Structure
+## Architecture Overview
 
-| Route | Description |
-|--------|--------------|
-| `/` | Landing Page — intro and feature overview |
-| `/dashboard` | Smart Account + Delegation setup, portfolio summary |
-| `/manage-funds` | Deposit & withdraw MON/WMON/sMON/gMON |
-| `/stake` | Stake/unstake MON-family tokens |
-| `/swap` | Swap MON-family tokens via PancakeSwap |
-| `/yield-optimizer` | Trigger rebalances manually or automatically |
-| `/activity` | View protocol & keeper activity feed |
+### System Overview
+
+Synapse Yield uses a **3-layer architecture**:
+
+1. **Frontend (Next.js + RainbowKit):** User interface for connecting wallets, delegating permissions, and viewing yield insights.
+2. **Backend (Node/Next API):** Runs the keeper logic, monitors protocol states, and triggers rebalances.
+3. **Blockchain (Monad Testnet):** Executes yield operations via delegated smart accounts.
 
 ---
 
-## 🚀 Getting Started
+## 🔗 Smart Contract Architecture
 
-### Prerequisites
-- Node.js (v18+)
-- npm / pnpm / yarn
-- Wallet with Monad Testnet configured (Chain ID: **10143**)
+**Important Note:** Synapse Yield does not deploy any custom smart contracts. Instead, it leverages existing, battle-tested DeFi protocols on the Monad Testnet.
 
-### Setup
+### Protocol Integration Approach
+
+Rather than introducing new smart contract risk, Synapse Yield acts as a **non-custodial orchestration layer** that:
+
+- ✅ **Interacts with existing protocols:** Kintsu, Magma, PancakeSwap Router
+- ✅ **Uses standard interfaces:** ERC-20, ERC-4337 (EntryPoint), Permit2
+- ✅ **Leverages MetaMask Smart Accounts:** User's smart account is their identity
+- ✅ **Executes via delegation:** Scoped permissions, not custom logic contracts
+
+### Why This Matters
+
+**Security Benefits:**
+- No custom contract audit required (reduces attack surface)
+- Relies on audited protocols (Kintsu, Magma, PancakeSwap)
+- Smart Account security handled by MetaMask (ERC-4337 standard)
+- Delegation permissions handled by MetaMask Delegation Toolkit
+
+**Architecture Benefits:**
+- Protocol-agnostic design (easy to add new protocols)
+- No contract deployment/maintenance overhead
+- Gas-efficient (no additional contract hops)
+- Faster iteration and updates (backend logic only)
+
+### How It Works
+
+1. **User's Smart Account:** Created via MetaMask Delegation Toolkit (ERC-4337)
+2. **Delegation:** User signs EIP-712 delegation granting keeper scoped permissions
+3. **Keeper Service:** Backend monitors and executes transactions via delegation
+4. **Protocol Interactions:** Direct calls to Kintsu, Magma, PancakeSwap contracts
+5. **Bundler:** Pimlico bundles UserOperations and submits to Monad EntryPoint
+
+### Integrated Contracts (Monad Testnet)
+
+While Synapse Yield doesn't deploy custom contracts, it interacts with:
+
+- **Kintsu Protocol:** Staking MON → sMON
+- **Magma Protocol:** Staking MON → gMON  
+- **PancakeSwap Router:** Token swapping (gMON ↔ sMON)
+- **WMON:** Wrapped MON for DeFi compatibility
+- **Permit2:** Gasless token approvals
+- **ERC-4337 EntryPoint:** Smart account transaction execution
+
+---
+
+## Setup
 
 ```bash
 git clone https://github.com/akm2006/synapse-yield.git
 cd synapse-yield
 npm install
-````
+```
 
 ### Environment Variables
 
-Create `.env.local` in the project root:
+Create a `.env.local` file:
 
-```env
+```bash
 # Monad Testnet
 NEXT_PUBLIC_RPC_URL=https://rpc.testnet.monad.xyz/
 NEXT_PUBLIC_CHAIN_ID=10143
@@ -144,7 +137,7 @@ SESSION_PASSWORD=YOUR_SECURE_IRON_SESSION_PASSWORD
 CRON_SECRET=YOUR_SECURE_CRON_SECRET
 ```
 
-Then run the dev server:
+Then run:
 
 ```bash
 npm run dev
@@ -158,18 +151,16 @@ Visit: [http://localhost:3000](http://localhost:3000)
 
 ## 🔮 Testnet → Mainnet Migration Guide
 
-| Area             | Testnet                  | Mainnet                             | Notes                            |
-| ---------------- | ------------------------ | ----------------------------------- | -------------------------------- |
-| **Network**      | Monad Testnet (10143)    | Update to Mainnet RPC/Chain ID      | Modify in `src/lib/chain.ts`     |
-| **Contracts**    | Testnet Deployments      | Verified Mainnet versions           | Update in `src/lib/contracts.ts` |
-| **APY Logic**    | Simulated                | Real-time fetched from chain        | Needed for yield accuracy        |
-| **Keeper Logic** | Simple ratio rebalancing | APY-aware smart allocation          | Core to mainnet ROI              |
-| **Transactions** | Sequential UserOps       | Potential atomic bundling           | Improves UX                      |
-| **Security**     | Dev keys                 | Harden, audit, restrict delegation  | Must-have for production         |
-| **AA Infra**     | Pimlico Testnet          | Pimlico Mainnet                     | Evaluate paymaster cost          |
-| **Indexer**      | Envio Testnet            | Mainnet endpoint                    | Adjust Apollo config             |
-| **UI/UX**        | Basic                    | Add confirmations, slippage, gas UI | Mainnet trust requirement        |
-| **Testing**      | Minimal                  | Add integration & e2e tests         | Prevent regressions              |
+| Area | Testnet | Mainnet | Notes |
+|------|----------|----------|-------|
+| Network | Monad Testnet (10143) | Mainnet RPC | Update in `chain.ts` |
+| Contracts | Testnet (Kintsu, Magma) | Mainnet versions | Update in `contracts.ts` |
+| APY Logic | Simulated | Real-time | Needed for accuracy |
+| Keeper Logic | 50/50 Rebalancing | APY-aware | Core to ROI |
+| Security | Dev keys | Audit & harden | Production-ready |
+| AA Infra | Pimlico Testnet | Pimlico Mainnet | Cost review |
+| Indexer | Envio Testnet | Mainnet endpoint | Apollo config |
+| UI/UX | Basic | Add confirmations & gas UI | Mainnet polish |
 
 ---
 
@@ -177,13 +168,7 @@ Visit: [http://localhost:3000](http://localhost:3000)
 
 Licensed under the **MIT License** — free to use, modify, and build upon.
 
----
-
-
 <p align="center">
   <sub>Built on Monad using MetaMask Delegation Toolkit.</sub><br>
   <sub>© 2025 Synapse Yield</sub>
 </p>
-```
-
-
